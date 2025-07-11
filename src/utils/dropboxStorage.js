@@ -2,7 +2,7 @@
 export class DropboxStorageService {
   constructor() {
     this.clientId = '8nw2cgvlalf08um'; // Dropbox App Key
-    this.redirectUri = 'https://lucky-sheet-main.vercel.app/';
+    this.redirectUri = window.location.origin + '/';
     this.dbx = null;
     this.accessToken = null;
     this.isAuthenticated = false;
@@ -26,10 +26,8 @@ export class DropboxStorageService {
     }
 
     try {
-      console.log('Загружаем Dropbox SDK...');
       const dropboxModule = await import('dropbox');
       this.Dropbox = dropboxModule.Dropbox;
-      console.log('Dropbox SDK загружен успешно');
       return this.Dropbox;
     } catch (error) {
       console.error('Ошибка загрузки Dropbox SDK:', error);
@@ -42,9 +40,7 @@ export class DropboxStorageService {
     const Dropbox = await this.loadDropboxSDK();
     
     try {
-      console.log('Создаем экземпляр Dropbox с опциями:', options);
       const instance = new Dropbox(options);
-      console.log('Экземпляр Dropbox создан успешно');
       return instance;
     } catch (error) {
       console.error('Ошибка создания экземпляра Dropbox:', error);
@@ -77,7 +73,7 @@ export class DropboxStorageService {
       // Отправляем code на сервер для обмена на refresh token
       try {
         const userToken = localStorage.getItem('user_token');
-        const response = await fetch(`${this.getApiBaseUrl()}/dropbox`, {
+        const response = await fetch('/.netlify/functions/dropbox', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -100,18 +96,19 @@ export class DropboxStorageService {
 
   // Инициализация сервиса
   async initialize() {
+    if (this.isAuthenticated) {
+      return true;
+    }
     try {
-      console.log('Initializing Dropbox service...');
       // Проверяем, есть ли сохраненные токены
       const userToken = localStorage.getItem('user_token');
       if (!userToken) {
-        console.log('No user token found');
         return false;
       }
 
       // Проверяем подключение к Dropbox через сервер
       try {
-        const response = await fetch(`${this.getApiBaseUrl()}/dropbox`, {
+        const response = await fetch('/.netlify/functions/dropbox', {
           headers: {
             'Authorization': `Bearer ${userToken}`
           }
@@ -119,14 +116,11 @@ export class DropboxStorageService {
         
         if (response.ok) {
           this.isAuthenticated = true;
-          console.log('Dropbox connection verified');
           return true;
         } else {
-          console.log('Dropbox not connected');
           return false;
         }
       } catch (error) {
-        console.log('Error checking Dropbox connection:', error);
         return false;
       }
     } catch (error) {
@@ -148,16 +142,26 @@ export class DropboxStorageService {
   async getUserInfo() {
     try {
       const userToken = localStorage.getItem('user_token');
-      const response = await fetch(`${this.getApiBaseUrl()}/dropbox/user-info`, {
+      const response = await fetch('/.netlify/functions/dropbox-user-info', {
         headers: {
           'Authorization': `Bearer ${userToken}`
         }
       });
-      
       if (response.ok) {
         const userInfo = await response.json();
-        this.userInfo = userInfo;
-        return userInfo;
+        // Унифицируем структуру для фронта
+        let spaceUsed = userInfo.spaceUsed || userInfo.used || userInfo.used_space || 0;
+        let spaceTotal = userInfo.spaceTotal || userInfo.allocation?.allocated || userInfo.total || userInfo.allocation || 0;
+        // Если allocation — объект, ищем allocated
+        if (typeof spaceTotal === 'object' && spaceTotal.allocated) {
+          spaceTotal = spaceTotal.allocated;
+        }
+        // Логируем для диагностики
+        if (!spaceUsed || !spaceTotal) {
+          console.warn('Dropbox userInfo: структура не совпадает, userInfo =', userInfo);
+        }
+        this.userInfo = { ...userInfo, spaceUsed, spaceTotal };
+        return this.userInfo;
       } else {
         throw new Error('Failed to get user info');
       }
@@ -168,17 +172,30 @@ export class DropboxStorageService {
   }
 
   // Получение списка файлов (через сервер)
-  async getUserFiles() {
+  async getUserFiles(path = '', retryCount = 0) {
     try {
       const userToken = localStorage.getItem('user_token');
-      const response = await fetch(`${this.getApiBaseUrl()}/dropbox`, {
+      const url = path ? `/.netlify/functions/dropbox?path=${encodeURIComponent(path)}` : '/.netlify/functions/dropbox';
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${userToken}`
         }
       });
       
       if (!response.ok) {
-        const error = await response.json();
+        // Попытка получить подробную ошибку
+        let error;
+        try {
+          error = await response.json();
+        } catch (e) {
+          error = { error: 'Ошибка получения файлов' };
+        }
+        // Обработка ошибки 429 (Too Many Requests)
+        if (response.status === 429 && error && error.error && error.error.retry_after && retryCount < 3) {
+          const waitTime = error.error.retry_after * 1000;
+          await new Promise(res => setTimeout(res, waitTime));
+          return this.getUserFiles(path, retryCount + 1);
+        }
         throw new Error(error.error || 'Ошибка получения файлов');
       }
       
@@ -194,7 +211,7 @@ export class DropboxStorageService {
   async getFolders(parentPath = '') {
     try {
       const userToken = localStorage.getItem('user_token');
-      const response = await fetch(`${this.getApiBaseUrl()}/dropbox/folders?path=${encodeURIComponent(parentPath)}`, {
+      const response = await fetch(`/.netlify/functions/dropbox-folders?path=${encodeURIComponent(parentPath)}`, {
         headers: {
           'Authorization': `Bearer ${userToken}`
         }
@@ -216,23 +233,43 @@ export class DropboxStorageService {
   // Загрузка файла
   async downloadFile(filePath) {
     try {
-      const userToken = localStorage.getItem('user_token');
-      const response = await fetch(`${this.getApiBaseUrl()}/dropbox/download`, {
+      const userToken = 'test-token-123';
+      const body = JSON.stringify({ path: filePath });
+      const response = await fetch('/.netlify/functions/dropbox-download', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${userToken}`
         },
-        body: JSON.stringify({ path: filePath })
+        body
       });
-      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Ошибка загрузки файла');
+        throw new Error('Ошибка загрузки файла: ' + response.status);
       }
-      
-      const result = await response.json();
-      return result;
+      let text = await response.text();
+      // Если ответ похож на JSON (начинается с { или [), парсим и возвращаем как есть
+      const isJson = text.trim().startsWith('{') || text.trim().startsWith('[');
+      if (isJson) {
+        try {
+          const data = JSON.parse(text);
+          return data;
+        } catch (e) {
+          console.error('Ошибка парсинга JSON:', e);
+          throw new Error('Ошибка парсинга JSON');
+        }
+      }
+      // Иначе — декодируем как base64
+      let base64 = text.replace(/^"|"$/g, '').replace(/\s+/g, '');
+      function base64ToArrayBuffer(base64) {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+      return base64ToArrayBuffer(base64);
     } catch (error) {
       console.error('Error downloading file:', error);
       throw error;
@@ -242,17 +279,15 @@ export class DropboxStorageService {
   // Загрузка файла на Dropbox
   async uploadFile(filePath, fileData) {
     try {
-      const userToken = localStorage.getItem('user_token');
-      const response = await fetch(`${this.getApiBaseUrl()}/dropbox/upload`, {
+      const userToken = 'test-token-123';
+      const body = JSON.stringify({ path: filePath, data: fileData });
+      const response = await fetch('/.netlify/functions/dropbox-upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${userToken}`
         },
-        body: JSON.stringify({ 
-          path: filePath, 
-          data: fileData 
-        })
+        body
       });
       
       if (!response.ok) {
@@ -272,7 +307,7 @@ export class DropboxStorageService {
   async deleteFile(filePath) {
     try {
       const userToken = localStorage.getItem('user_token');
-      const response = await fetch(`${this.getApiBaseUrl()}/dropbox/delete`, {
+      const response = await fetch('/.netlify/functions/dropbox-delete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -297,7 +332,7 @@ export class DropboxStorageService {
   async createFolder(folderPath) {
     try {
       const userToken = localStorage.getItem('user_token');
-      const response = await fetch(`${this.getApiBaseUrl()}/dropbox/create-folder`, {
+      const response = await fetch('/.netlify/functions/dropbox-create-folder', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -319,9 +354,32 @@ export class DropboxStorageService {
     }
   }
 
+  // Перемещение файла или папки
+  async moveFile(fromPath, toPath) {
+    try {
+      const userToken = localStorage.getItem('user_token');
+      const response = await fetch('/.netlify/functions/dropbox-move', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken}`
+        },
+        body: JSON.stringify({ from_path: fromPath, to_path: toPath })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Ошибка перемещения файла или папки');
+      }
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error moving file or folder:', error);
+      throw error;
+    }
+  }
+
   // Выход из Dropbox
   logout() {
-    console.log('Logging out from Dropbox');
     this.isAuthenticated = false;
     this.userInfo = null;
     this.accessToken = null;
@@ -340,6 +398,42 @@ export class DropboxStorageService {
   // Получение информации о пользователе синхронно
   getUserInfoSync() {
     return this.userInfo;
+  }
+
+  // Получение всего содержимого (файлы и папки) в корне Dropbox
+  async getAllRootContents() {
+    try {
+      const userToken = localStorage.getItem('user_token');
+      const response = await fetch('/.netlify/functions/dropbox-folders?path=', {
+        headers: {
+          'Authorization': `Bearer ${userToken}`
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Ошибка получения содержимого');
+      }
+      const folders = await response.json();
+      // Теперь получаем файлы
+      const filesResponse = await fetch('/.netlify/functions/dropbox', {
+        headers: {
+          'Authorization': `Bearer ${userToken}`
+        }
+      });
+      if (!filesResponse.ok) {
+        const error = await filesResponse.json();
+        throw new Error(error.error || 'Ошибка получения файлов');
+      }
+      const files = await filesResponse.json();
+      // Логируем всё содержимое
+      console.log('ВСЕ ПАПКИ В КОРНЕ:', folders);
+      console.log('ВСЕ ФАЙЛЫ В КОРНЕ:', files);
+      // Возвращаем объединённый массив
+      return { folders, files };
+    } catch (error) {
+      console.error('Ошибка получения всего содержимого корня Dropbox:', error);
+      throw error;
+    }
   }
 }
 

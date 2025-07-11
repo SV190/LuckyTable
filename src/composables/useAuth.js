@@ -1,6 +1,5 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from '../utils/supabase'
 
 const user = ref(null)
 const isAuthenticated = ref(false)
@@ -15,31 +14,27 @@ const getApiBaseUrl = () => {
   return '/api'
 }
 
-// Проверка текущей сессии при инициализации
-supabase.auth.getUser().then(({ data, error: err }) => {
-  if (data?.user) {
-    user.value = data.user
-    isAuthenticated.value = true
+// Автоматически инициализируем авторизацию при загрузке модуля
+if (typeof window !== 'undefined') {
+  const token = localStorage.getItem('user_token');
+  const userInfo = localStorage.getItem('user_info');
+  if (token && userInfo) {
+    try {
+      user.value = JSON.parse(userInfo);
+      isAuthenticated.value = true;
+    } catch (e) {
+      user.value = null;
+      isAuthenticated.value = false;
+    }
   }
-})
-
-// Слушаем изменения состояния аутентификации
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_IN' && session?.user) {
-    user.value = session.user
-    isAuthenticated.value = true
-  } else if (event === 'SIGNED_OUT') {
-    user.value = null
-    isAuthenticated.value = false
-  }
-})
+}
 
 export function useAuth() {
   const router = useRouter()
 
   // Проверяем, является ли пользователь администратором
   const isAdmin = computed(() => {
-    return user.value?.is_admin === true
+    return user.value?.role === 'admin'
   })
 
   // Инициализация состояния авторизации
@@ -58,55 +53,73 @@ export function useAuth() {
   }
 
   // Логин
-  const login = async (email, password) => {
-    isLoading.value = true
-    error.value = null
-    
-    console.log('Попытка входа с:', { email, password: password ? '***' : 'undefined' })
-    
+  const login = async (loginValue, password) => {
+    isLoading.value = true;
+    error.value = null;
     try {
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
-      
-      if (err) {
-        console.error('Ошибка входа:', err)
-        error.value = err.message
-        user.value = null
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: loginValue, password })
+      });
+      const text = await response.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {
+        data = {};
+      }
+      if (!response.ok) {
+        error.value = data.error || 'Ошибка входа';
+        user.value = null;
+        isAuthenticated.value = false;
+        throw new Error(error.value);
       } else {
-        console.log('Успешный вход:', data.user)
-        user.value = data.user
-        isAuthenticated.value = true
+        // После успешного логина делаем запрос на /api/users?id=<userId>
+        const userId = data.user?.id;
+        let fullUser = data.user;
+        if (userId) {
+          try {
+            const userResp = await fetch(`/api/users?id=${userId}`, {
+              headers: { 'Authorization': `Bearer ${data.token}` }
+            });
+            if (userResp.ok) {
+              fullUser = await userResp.json();
+              console.log('Получен полный объект пользователя:', fullUser);
+            } else {
+              console.warn('Не удалось получить полный объект пользователя, используем базовый:', data.user);
+            }
+          } catch (e) {
+            console.warn('Ошибка получения полного пользователя:', e);
+          }
+        }
+        user.value = fullUser;
+        isAuthenticated.value = true;
+        // Сохраняем токен и инфу о пользователе в localStorage
+        localStorage.setItem('user_token', data.token);
+        localStorage.setItem('user_info', JSON.stringify(fullUser));
       }
     } catch (e) {
-      console.error('Исключение при входе:', e)
-      error.value = e.message
-      user.value = null
+      error.value = e.message;
+      user.value = null;
+      isAuthenticated.value = false;
+      throw e;
     }
-    
-    isLoading.value = false
-    return { user: user.value, error: error.value }
+    isLoading.value = false;
+    return { user: user.value, error: error.value };
   }
 
-  // Регистрация
-  const register = async (email, password) => {
-    isLoading.value = true
-    error.value = null
-    const { data, error: err } = await supabase.auth.signUp({ email, password })
-    if (err) {
-      error.value = err.message
-      user.value = null
-    } else {
-      user.value = data.user
-      isAuthenticated.value = true
-    }
-    isLoading.value = false
-    return { user: user.value, error: error.value }
+  // Заглушка регистрации (реализуйте при необходимости)
+  const register = async (login, password) => {
+    throw new Error('Регистрация не реализована');
   }
 
   // Выход
   const logout = async () => {
-    await supabase.auth.signOut()
-    user.value = null
-    isAuthenticated.value = false
+    user.value = null;
+    isAuthenticated.value = false;
+    localStorage.removeItem('user_token');
+    localStorage.removeItem('user_info');
   }
 
   // Проверка авторизации для защищенных маршрутов

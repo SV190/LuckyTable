@@ -1,61 +1,43 @@
 <template>
-  <div class="user-auth">
-    <div class="auth-container">
+  <div class="auth-bg">
+    <div class="auth-center">
       <div class="auth-card">
-        <div class="auth-header">
-          <div class="logo">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            <h1>LuckySheet</h1>
-          </div>
-          <p class="auth-subtitle">Войдите в систему для работы с таблицами</p>
+        <div class="auth-logo-row">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          <span class="auth-title">LuckySheet</span>
         </div>
-        
-        <form @submit.prevent="handleLogin" class="auth-form">
-          <div class="form-group">
-            <label for="email">Email</label>
-            <div class="input-wrapper">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
-              </svg>
-              <input 
-                id="email"
-                v-model="email" 
-                type="email" 
-                placeholder="Введите email"
-                required
-                :disabled="isLoading"
-              />
-            </div>
+        <div class="auth-subtitle">Вход в систему</div>
+        <form @submit.prevent="handleLogin" class="auth-form-strict">
+          <div class="auth-field">
+            <label for="login">Логин</label>
+            <input
+              id="login"
+              v-model="loginInput"
+              type="text"
+              placeholder="Введите логин"
+              required
+              autocomplete="username"
+              class="auth-input"
+            />
           </div>
-          
-          <div class="form-group">
+          <div class="auth-field">
             <label for="password">Пароль</label>
-            <div class="input-wrapper">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <circle cx="12" cy="16" r="1"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <input 
-                id="password"
-                v-model="password" 
-                type="password" 
-                placeholder="Введите пароль"
-                required
-                :disabled="isLoading"
-              />
-            </div>
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              placeholder="Введите пароль"
+              required
+              autocomplete="current-password"
+              class="auth-input"
+            />
           </div>
-          
-          <button type="submit" class="login-btn" :disabled="isLoading">
-            <span v-if="isLoading" class="loading-spinner"></span>
-            <span v-else>Войти в систему</span>
+          <button type="submit" class="auth-btn">
+            Войти
           </button>
-          
-          <div v-if="error" class="error-message">
+          <div v-if="error" class="auth-error">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <line x1="15" y1="9" x2="9" y2="15"/>
@@ -64,10 +46,6 @@
             {{ error }}
           </div>
         </form>
-        <div class="hello-test-block">
-          <button @click="callHello" class="hello-btn">Проверить /api/hello</button>
-          <div v-if="helloMessage" class="hello-message">{{ helloMessage }}</div>
-        </div>
       </div>
     </div>
   </div>
@@ -76,31 +54,21 @@
 <script setup>
 import { ref } from 'vue'
 import { useAuth } from '../composables/useAuth.js'
+import { useRouter } from 'vue-router'
+import { initializeDropboxIfNeeded } from '../composables/useDropboxInit.js'
 
-const { login, isLoading } = useAuth()
-const email = ref('')
+const { login } = useAuth()
+const loginInput = ref('')
 const password = ref('')
 const error = ref('')
-
-const helloMessage = ref('')
-async function callHello() {
-  helloMessage.value = 'Загрузка...'
-  try {
-    const res = await fetch('/api/hello')
-    if (!res.ok) throw new Error('Ошибка запроса: ' + res.status)
-    const data = await res.json()
-    helloMessage.value = data.message
-  } catch (e) {
-    helloMessage.value = 'Ошибка: ' + e.message
-  }
-}
+const router = useRouter()
 
 const handleLogin = async () => {
   error.value = ''
-  
   try {
-    await login(email.value, password.value)
-    // После успешного входа роутер автоматически перенаправит на главную страницу
+    await login(loginInput.value, password.value)
+    initializeDropboxIfNeeded() // не await!
+    router.push('/')
   } catch (err) {
     error.value = err.message
   }
@@ -108,174 +76,114 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.user-auth {
+.auth-bg {
   min-height: 100vh;
-  background: #f8fafc;
+  background: linear-gradient(120deg, #f8fafc 0%, #e5eaf3 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
-
-.auth-container {
-  width: 100%;
-  max-width: 400px;
+.auth-center {
+  width: 100vw;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-
 .auth-card {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
-  padding: 2.5rem;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 6px 32px 0 rgba(0,0,0,0.08);
+  padding: 2.5rem 2.5rem 2rem 2.5rem;
+  min-width: 340px;
+  max-width: 95vw;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: 1.5px solid #e5eaf3;
 }
-
-.auth-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.logo {
+.auth-logo-row {
   display: flex;
   align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1.2rem;
   justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  color: #3b82f6;
 }
-
-.logo h1 {
-  font-size: 1.875rem;
+.auth-title {
+  font-size: 1.7rem;
   font-weight: 700;
-  margin: 0;
-  color: #1e293b;
+  color: #23272f;
+  letter-spacing: 0.5px;
 }
-
 .auth-subtitle {
-  color: #64748b;
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-wrapper svg {
-  position: absolute;
-  left: 0.75rem;
-  color: #9ca3af;
-}
-
-.input-wrapper input {
-  width: 100%;
-  padding: 0.625rem 0.75rem 0.625rem 2.25rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-  background: #ffffff;
-}
-
-.input-wrapper input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.input-wrapper input:disabled {
-  background: #f9fafb;
-  cursor: not-allowed;
-}
-
-.login-btn {
-  width: 100%;
-  padding: 0.75rem;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.login-btn:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.login-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.loading-spinner {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid transparent;
-  border-top: 2px solid currentColor;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.error-message {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #dc2626;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  margin-top: 1rem;
-  font-size: 0.875rem;
-}
-
-.hello-test-block {
-  margin-top: 2rem;
+  color: #6b7280;
   text-align: center;
-}
-.hello-btn {
-  background: #10b981;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.375rem;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  margin-bottom: 2.2rem;
   font-weight: 500;
+}
+.auth-form-strict {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.auth-field label {
+  color: #6b7280;
+  font-size: 0.98rem;
+  font-weight: 500;
+  margin-bottom: 0.1rem;
+  letter-spacing: 0.1px;
+}
+.auth-input {
+  background: #f8fafc;
+  border: 1.5px solid #d1d5db;
+  border-radius: 7px;
+  color: #23272f;
+  font-size: 1.08rem;
+  padding: 0.7rem 1rem;
+  outline: none;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+.auth-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.13);
+}
+.auth-btn {
+  background: #3b82f6;
+  color: #fff;
+  font-size: 1.13rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 7px;
+  padding: 0.85rem 0;
+  margin-top: 0.2rem;
   cursor: pointer;
-  margin-bottom: 1rem;
+  box-shadow: 0 2px 12px rgba(59,130,246,0.13);
+  letter-spacing: 0.2px;
+  transition: background 0.2s, box-shadow 0.2s;
+  position: relative;
 }
-.hello-btn:hover {
-  background: #059669;
+.auth-btn:hover {
+  background: #2563eb;
+  box-shadow: 0 4px 18px rgba(59,130,246,0.18);
 }
-.hello-message {
-  margin-top: 0.5rem;
-  font-size: 1.1rem;
-  color: #2563eb;
+.auth-error {
+  margin-top: 1.1rem;
+  color: #ff4d4f;
+  background: #fff0f0;
+  border-radius: 6px;
+  padding: 0.7rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.01rem;
+  font-weight: 500;
+  border: 1.2px solid #ff4d4f22;
+  box-shadow: 0 2px 8px 0 rgba(255,77,79,0.07);
 }
 </style> 

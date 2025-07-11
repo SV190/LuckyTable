@@ -1,33 +1,10 @@
 <template>
   <div id="app">
     <div class="app-container">
-      <!-- Навигационная панель -->
-      <nav class="navbar">
-        <div class="nav-brand">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
-          <span>LuckySheet</span>
-        </div>
-        <div class="nav-user">
-          <span class="user-email">{{ user?.email }}</span>
-          <button v-if="isAdmin" @click="goToAdmin" class="admin-btn">
-            Админ панель
-          </button>
-          <button @click="handleLogout" class="logout-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16,17 21,12 16,7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-            Выйти
-          </button>
-        </div>
-      </nav>
       
       <div class="main-layout">
         <div class="main-content">
-          <FileManager @openFile="openFile" />
+          <FileManager @openFile="openFile" @logout="handleLogout" @goToAdmin="goToAdmin" />
         </div>
       </div>
       <div v-if="showSettings" class="settings-modal" @click="showSettings = false">
@@ -50,34 +27,38 @@
         </div>
       </div>
     </div>
-    <div v-if="currentFile" class="editor-container">
+    <div v-if="currentFile" class="editor-container" :class="{ fullscreen: isFullscreen }">
       <EditorToolbar 
         :fileName="currentFile.name"
-        @save="saveFile"
-        @close="closeFile"
+        @backToFiles="handleBackToFiles"
+        @saveToCloud="handleSaveToCloud"
+        @fullscreen="toggleFullscreen"
       />
       <LuckySheet 
-        :data="currentFile.data"
-        @update="updateFileData"
+        :fileData="currentFile"
+        @update:fileData="updateFileData"
       />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import FileManager from './FileManager.vue'
 import LuckySheet from './LuckySheet.vue'
 import EditorToolbar from './EditorToolbar.vue'
+import { dropboxStorage } from '../utils/dropboxStorage.js'
+import { initializeDropboxIfNeeded } from '../composables/useDropboxInit.js'
 
 const router = useRouter()
-const { user, isAdmin, logout } = useAuth()
+const { user, isAdmin, logout, isAuthenticated } = useAuth()
 
 const showSettings = ref(false)
 const storageType = ref('local')
 const currentFile = ref(null)
+const isFullscreen = ref(false)
 
 const handleLogout = async () => {
   await logout()
@@ -89,7 +70,12 @@ const goToAdmin = () => {
 }
 
 const openFile = (file) => {
-  currentFile.value = file
+  currentFile.value = {
+    name: file.name,
+    path: file.path, // <-- обязательно!
+    data: file.data,
+    isNew: file.isNew || false
+  }
 }
 
 const closeFile = () => {
@@ -105,9 +91,70 @@ const saveFile = (data) => {
 
 const updateFileData = (data) => {
   if (currentFile.value) {
-    currentFile.value.data = data
+    currentFile.value.data = data.data || data;
   }
 }
+
+// === Новые обработчики ===
+const handleBackToFiles = () => {
+  currentFile.value = null
+}
+
+const handleSaveToCloud = async () => {
+  console.log('=== Сохранение файла ===');
+  console.log('currentFile:', currentFile.value);
+  if (currentFile.value && currentFile.value.path && currentFile.value.data) {
+    const filePath = currentFile.value.path; // сохраняем по исходному пути
+    console.log('Путь к файлу:', filePath);
+    console.log('Данные для сохранения:', currentFile.value.data);
+    try {
+      const jsonString = JSON.stringify(currentFile.value.data);
+      const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+      console.log('base64Data (первые 200 символов):', base64Data.slice(0, 200));
+      const result = await dropboxStorage.uploadFile(filePath, base64Data);
+      console.log('Результат ответа от сервера:', result);
+      alert('Файл успешно сохранён в Dropbox!');
+    } catch (e) {
+      console.error('Ошибка при сохранении в Dropbox:', e);
+      alert('Ошибка при сохранении в Dropbox: ' + (e.message || e));
+    }
+  } else {
+    console.warn('Нет данных для сохранения или не указан путь файла!', currentFile.value);
+    alert('Нет данных для сохранения или не указан путь файла!');
+  }
+}
+
+const toggleFullscreen = () => {
+  isFullscreen.value = !isFullscreen.value
+  const editor = document.querySelector('.editor-container')
+  if (isFullscreen.value) {
+    if (editor.requestFullscreen) {
+      editor.requestFullscreen()
+    } else if (editor.webkitRequestFullscreen) {
+      editor.webkitRequestFullscreen()
+    } else if (editor.mozRequestFullScreen) {
+      editor.mozRequestFullScreen()
+    } else if (editor.msRequestFullscreen) {
+      editor.msRequestFullscreen()
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen()
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen()
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen()
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen()
+    }
+  }
+}
+
+onMounted(() => {
+  if (isAuthenticated.value) {
+    // initializeDropboxIfNeeded() // УДАЛЕНО
+  }
+})
 </script>
 
 <style scoped>
@@ -121,71 +168,6 @@ const updateFileData = (data) => {
   flex: 1;
   display: flex;
   flex-direction: column;
-}
-
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-}
-
-.nav-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  font-size: 1.25rem;
-  color: #3b82f6;
-}
-
-.nav-user {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.user-email {
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.admin-btn {
-  background: #10b981;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.admin-btn:hover {
-  background: #059669;
-}
-
-.logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.logout-btn:hover {
-  background: #dc2626;
 }
 
 .main-layout {
@@ -266,5 +248,17 @@ const updateFileData = (data) => {
   bottom: 0;
   z-index: 100;
   background: white;
+}
+
+.editor-container.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: white;
+  width: 100vw;
+  height: 100vh;
 }
 </style> 

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест Dropbox Admin API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Тест Dropbox Admin API</h1>
+        
+        <div class="form-group">
+            <label for="refreshToken">Refresh Token:</label>
+            <textarea id="refreshToken" rows="3" placeholder="Введите refresh token"></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="appKey">App Key (опционально):</label>
+            <input type="text" id="appKey" placeholder="8nw2cgvlalf08um">
+        </div>
+        
+        <div class="form-group">
+            <label for="appSecret">App Secret (опционально):</label>
+            <input type="password" id="appSecret" placeholder="Введите app secret">
+        </div>
+        
+        <div class="form-group">
+            <label for="userIds">User IDs (через запятую):</label>
+            <input type="text" id="userIds" placeholder="1,2,3">
+        </div>
+        
+        <button onclick="testValidation()">Проверить токен</button>
+        <button onclick="testSaveToken()">Сохранить токен</button>
+        <button onclick="testGetStatus()">Получить статус</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = '/.netlify/functions/dropbox-admin';
+        
+        async function makeRequest(method, data = null) {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer test-token-123'
+                }
+            };
+            
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+            
+            try {
+                const response = await fetch(API_BASE, options);
+                const result = await response.json();
+                
+                return {
+                    success: response.ok,
+                    status: response.status,
+                    data: result
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+        
+        function showResult(result, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.textContent = JSON.stringify(result, null, 2);
+        }
+        
+        async function testValidation() {
+            const refreshToken = document.getElementById('refreshToken').value;
+            const appKey = document.getElementById('appKey').value;
+            const appSecret = document.getElementById('appSecret').value;
+            
+            if (!refreshToken) {
+                showResult({ error: 'Refresh token обязателен' }, 'error');
+                return;
+            }
+            
+            const result = await makeRequest('POST', {
+                refreshToken,
+                appKey: appKey || undefined,
+                appSecret: appSecret || undefined,
+                userIds: []
+            });
+            
+            if (result.success) {
+                showResult(result.data, 'success');
+            } else {
+                showResult(result, 'error');
+            }
+        }
+        
+        async function testSaveToken() {
+            const refreshToken = document.getElementById('refreshToken').value;
+            const appKey = document.getElementById('appKey').value;
+            const appSecret = document.getElementById('appSecret').value;
+            const userIdsText = document.getElementById('userIds').value;
+            
+            if (!refreshToken) {
+                showResult({ error: 'Refresh token обязателен' }, 'error');
+                return;
+            }
+            
+            const userIds = userIdsText.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            if (userIds.length === 0) {
+                showResult({ error: 'Выберите хотя бы одного пользователя' }, 'error');
+                return;
+            }
+            
+            const result = await makeRequest('POST', {
+                refreshToken,
+                appKey: appKey || undefined,
+                appSecret: appSecret || undefined,
+                userIds
+            });
+            
+            if (result.success) {
+                showResult(result.data, 'success');
+            } else {
+                showResult(result, 'error');
+            }
+        }
+        
+        async function testGetStatus() {
+            const result = await makeRequest('GET');
+            
+            if (result.success) {
+                showResult(result.data, 'success');
+            } else {
+                showResult(result, 'error');
+            }
+        }
+    </script>
+</body>
+</html> 

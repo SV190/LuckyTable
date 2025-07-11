@@ -42,7 +42,7 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth && to.meta.requiresAdmin) {
     if (!isAuthenticated.value) {
       next('/login')
-    } else if (!user.value?.is_admin) {
+    } else if (user.value?.role !== 'admin') {
       next('/')
     } else {
       next()

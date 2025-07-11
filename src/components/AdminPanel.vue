@@ -95,22 +95,22 @@
                 Создать пользователя
               </button>
             </div>
-            
-            <div class="users-table">
+            <div v-if="users.length === 0" class="empty-state">Нет пользователей</div>
+            <div v-else class="users-table">
               <div class="table-header">
                 <div class="table-cell">ID</div>
-                <div class="table-cell">Email</div>
+                <div class="table-cell">Логин</div>
                 <div class="table-cell">Роль</div>
                 <div class="table-cell">Статус</div>
+                <div class="table-cell">Dropbox</div>
                 <div class="table-cell">Действия</div>
               </div>
-              
               <div v-for="user in users" :key="user.id" class="table-row">
                 <div class="table-cell">{{ user.id }}</div>
-                <div class="table-cell">{{ user.email }}</div>
+                <div class="table-cell">{{ user.login }}</div>
                 <div class="table-cell">
-                  <span :class="['role-badge', user.is_admin ? 'admin' : 'user']">
-                    {{ user.is_admin ? 'Админ' : 'Пользователь' }}
+                  <span :class="['role-badge', user.role === 'admin' ? 'admin' : 'user']">
+                    {{ user.role === 'admin' ? 'Админ' : 'Пользователь' }}
                   </span>
                 </div>
                 <div class="table-cell">
@@ -119,30 +119,33 @@
                   </span>
                 </div>
                 <div class="table-cell">
+                  <span v-if="user.dropboxRefreshToken && typeof user.dropboxRefreshToken === 'string' && user.dropboxRefreshToken.length > 10" class="status-badge connected">
+                    Подключен
+                  </span>
+                  <span v-else class="status-badge disconnected">
+                    Не подключен
+                  </span>
+                </div>
+                <!-- ВРЕМЕННО: выводим весь объект пользователя для отладки -->
+                
+                <div class="table-cell">
                   <button 
-                    v-if="!user.is_admin" 
+                    v-if="user.id !== currentUserId && user.role !== 'admin'" 
                     @click="toggleBlock(user)"
                     :class="['action-btn', user.is_blocked ? 'unblock' : 'block']"
                     :disabled="isLoading"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path v-if="user.is_blocked" d="M9 12l2 2 4-4"/>
-                      <path v-else d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                    </svg>
                     {{ user.is_blocked ? 'Разблокировать' : 'Заблокировать' }}
                   </button>
+                  <button 
+                    v-if="!user.dropboxRefreshToken" 
+                    @click="autoConnectDropbox(user)"
+                    class="action-btn connect"
+                    :disabled="isLoading"
+                  >
+                    Подключить
+                  </button>
                 </div>
-              </div>
-              
-              <div v-if="users.length === 0" class="empty-state">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <h4>Нет пользователей</h4>
-                <p>Создайте первого пользователя для начала работы</p>
               </div>
             </div>
           </div>
@@ -165,12 +168,12 @@
         
         <form @submit.prevent="createUser" class="modal-form">
           <div class="form-group">
-            <label for="newEmail">Email</label>
+            <label for="newLogin">Логин</label>
             <input 
-              id="newEmail"
-              v-model="newUser.email" 
-              type="email" 
-              placeholder="Введите email"
+              id="newLogin"
+              v-model="newUser.login" 
+              type="text" 
+              placeholder="Введите логин"
               required
             />
           </div>
@@ -223,6 +226,68 @@
         </form>
       </div>
     </div>
+
+    <!-- Модальное окно настройки Dropbox -->
+    <div v-if="showDropboxModal" class="modal-overlay" @click="showDropboxModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Подключить Dropbox</h3>
+          <button @click="showDropboxModal = false" class="close-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-content-body">
+          <div class="dropbox-setup-section">
+            <h4>Введите refresh token для подключения пользователя к Dropbox</h4>
+            <div class="form-group">
+              <label for="dropboxRefreshToken">Refresh Token</label>
+              <input 
+                id="dropboxRefreshToken"
+                v-model="dropboxConfig.refreshToken" 
+                type="text" 
+                placeholder="Введите refresh token"
+                class="token-input"
+              />
+            </div>
+            <div class="form-group">
+              <label for="userSelect">Пользователь</label>
+              <select id="userSelect" v-model="selectedUserId">
+                <option v-for="user in users.filter(u => !u.is_admin)" :key="user.id" :value="user.id">
+                  {{ user.login }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" @click="showDropboxModal = false" class="cancel-btn">
+              Отмена
+            </button>
+            <button @click="saveDropboxConfig" class="submit-btn" :disabled="isLoading">
+              <span v-if="isLoading" class="loading-spinner"></span>
+              <span v-else>Подключить</span>
+            </button>
+          </div>
+          <div v-if="dropboxError" class="error-message">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            {{ dropboxError }}
+          </div>
+          <div v-if="dropboxSuccess" class="success-message">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22,4 12,14.01 9,11.01"/>
+            </svg>
+            Dropbox успешно подключен!
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -230,32 +295,56 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../composables/useAuth.js'
 import { useRouter } from 'vue-router'
-import { supabase } from '../utils/supabase.js'
+import.meta.env;
+import axios from 'axios';
 
 const router = useRouter()
-const { user, logout: authLogout } = useAuth()
+const { user, logout: authLogout, getToken } = useAuth()
+
+const currentUserId = ref(null)
+if (user && user.value && user.value.id) {
+  currentUserId.value = user.value.id
+}
 
 const users = ref([])
 const isLoading = ref(false)
 const createError = ref('')
 const createSuccess = ref(false)
 const showCreateModal = ref(false)
-const newUser = ref({ email: '', password: '', is_admin: false })
+const showDropboxModal = ref(false)
+const newUser = ref({ login: '', password: '', is_admin: false })
+
+// Dropbox настройки
+const dropboxConfig = ref({
+  refreshToken: ''
+})
+const selectedUserId = ref(null)
+const dropboxError = ref('')
+const dropboxSuccess = ref(false)
+
+const DROPBOX_REFRESH_TOKEN = import.meta.env.VITE_DROPBOX_REFRESH_TOKEN || import.meta.env.DROPBOX_REFRESH_TOKEN || '';
 
 // Вычисляемые свойства для статистики
 const activeUsers = computed(() => users.value.filter(u => !u.is_blocked).length)
 const blockedUsers = computed(() => users.value.filter(u => u.is_blocked).length)
+const connectedUsersCount = computed(() => users.value.filter(u => u.dropboxRefreshToken).length)
+const dropboxRefreshToken = computed(() => DROPBOX_REFRESH_TOKEN || dropboxConfig.value.refreshToken)
 
 const fetchUsers = async () => {
   try {
     isLoading.value = true
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const token = getToken()
+    const response = await fetch('/api/users', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    if (!response.ok) throw new Error('Ошибка загрузки пользователей')
+    const data = await response.json()
+    users.value = data
     
-    if (error) throw error
-    users.value = data || []
+    // Проверяем статус Dropbox подключений
+    await checkDropboxStatus()
   } catch (e) {
     console.error('Error fetching users:', e)
     users.value = []
@@ -274,28 +363,23 @@ const createUser = async () => {
   createSuccess.value = false
   isLoading.value = true
   try {
-    // Создаем пользователя через Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: newUser.value.email,
-      password: newUser.value.password
-    })
-    
-    if (authError) throw authError
-    
-    // Добавляем пользователя в таблицу users
-    const { error: dbError } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: newUser.value.email,
-        is_admin: newUser.value.is_admin,
-        created_at: new Date().toISOString()
+    const token = getToken()
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        login: newUser.value.login,
+        password: newUser.value.password,
+        role: newUser.value.is_admin ? 'admin' : 'user'
       })
-    
-    if (dbError) throw dbError
-    
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Ошибка создания пользователя')
     createSuccess.value = true
-    newUser.value = { email: '', password: '', is_admin: false }
+    newUser.value = { login: '', password: '', is_admin: false }
     showCreateModal.value = false
     await fetchUsers()
   } catch (e) {
@@ -308,12 +392,20 @@ const createUser = async () => {
 const toggleBlock = async (user) => {
   isLoading.value = true
   try {
-    const { error } = await supabase
-      .from('users')
-      .update({ is_blocked: !user.is_blocked })
-      .eq('id', user.id)
-    
-    if (error) throw error
+    const token = getToken()
+    const response = await fetch('/api/users', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        id: user.id,
+        is_blocked: !user.is_blocked
+      })
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Ошибка блокировки')
     await fetchUsers()
   } catch (e) {
     console.error('Ошибка блокировки:', e)
@@ -322,727 +414,426 @@ const toggleBlock = async (user) => {
   }
 }
 
+const connectDropbox = async (user) => {
+  if (!DROPBOX_REFRESH_TOKEN) {
+    alert('Токен Dropbox не задан в .env');
+    return;
+  }
+  isLoading.value = true;
+  try {
+    const token = getToken();
+    const response = await fetch('/api/users', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        id: user.id,
+        dropboxRefreshToken: DROPBOX_REFRESH_TOKEN
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Ошибка подключения Dropbox');
+    await fetchUsers();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const saveDropboxConfig = async () => {
+  dropboxError.value = '';
+  dropboxSuccess.value = false;
+  isLoading.value = true;
+  
+  try {
+    if (!dropboxConfig.value.refreshToken) {
+      throw new Error('Refresh token обязателен');
+    }
+    if (!selectedUserId.value) {
+      throw new Error('Выберите пользователя');
+    }
+    
+    const token = getToken();
+    
+    const response = await fetch('/.netlify/functions/dropbox-admin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        refreshToken: dropboxConfig.value.refreshToken,
+        userIds: [selectedUserId.value]
+      })
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.details || 'Ошибка подключения Dropbox');
+    }
+    
+    dropboxSuccess.value = true;
+    selectedUserId.value = null;
+    dropboxConfig.value.refreshToken = '';
+    await fetchUsers();
+    
+    // Закрываем модальное окно через 2 секунды
+    setTimeout(() => {
+      showDropboxModal.value = false;
+      dropboxSuccess.value = false;
+    }, 2000);
+    
+  } catch (e) {
+    dropboxError.value = e.message;
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 onMounted(() => {
   fetchUsers()
 })
+
+// Функция для проверки статуса Dropbox подключений
+const checkDropboxStatus = async () => {
+  try {
+    const token = getToken();
+    const response = await fetch('/.netlify/functions/dropbox-admin', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Проверяем, что data.users существует и является массивом
+      const dropboxUsers = data.users || [];
+      
+      // Обновляем информацию о пользователях с статусом Dropbox
+      users.value = users.value.map(user => {
+        const dropboxUser = dropboxUsers.find(d => d.id === user.id);
+        if (dropboxUser) {
+          return {
+            ...user,
+            dropboxConnected: dropboxUser.dropboxConnected,
+            dropboxError: dropboxUser.dropboxError
+          };
+        }
+        return user;
+      });
+    }
+  } catch (error) {
+    console.error('Error checking Dropbox status:', error);
+  }
+};
+
+// В methods добавить функцию autoConnectDropbox
+const autoConnectDropbox = async (user) => {
+  try {
+    isLoading.value = true;
+    const token = getToken();
+    const response = await axios.post(
+      '/.netlify/functions/dropbox-admin',
+      {
+        userIds: [user.id],
+        autoConnect: true
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+    const data = response.data;
+    if (!response.status || response.status >= 400) throw new Error(data.error || 'Ошибка автоподключения Dropbox');
+    await fetchUsers();
+  } catch (e) {
+    alert('Ошибка автоподключения Dropbox: ' + (e.message || e));
+  } finally {
+    isLoading.value = false;
+  }
+}
 </script>
 
 <style scoped>
+:root {
+  --accent: #6366f1;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --info: #2563eb;
+  --gray-bg: #f8fafc;
+}
 .admin-panel {
+  background: #fff;
   min-height: 100vh;
-  background: #f8fafc;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: Arial, sans-serif;
 }
-
 .admin-header {
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  padding: 1rem 0;
+  background: #eef2ff;
+  color: var(--accent);
+  border-bottom: 1px solid #e0e0e0;
+  padding: 18px 0 12px 0;
+  margin-bottom: 18px;
 }
-
 .header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 2rem;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 18px;
 }
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: #1e293b;
-}
-
 .logo h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0;
-  color: #1e293b;
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin-left: 8px;
+  color: var(--accent);
 }
-
-.back-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #64748b;
+.header-actions .back-link {
+  color: var(--accent);
+  background: none;
+  border-radius: 4px;
+  padding: 6px 12px;
   text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  background: #f1f5f9;
-  transition: all 0.2s;
   font-weight: 500;
+  border: 1px solid var(--accent);
+  transition: background 0.2s, color 0.2s;
 }
-
-.back-link:hover {
-  background: #e2e8f0;
-  color: #475569;
+.header-actions .back-link:hover {
+  background: #e0e7ff;
+  color: #222;
 }
-
 .admin-content {
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 0 12px;
 }
-
-/* Форма входа */
-.login-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 80vh;
-}
-
-.login-card {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
-  padding: 2.5rem;
-  width: 100%;
-  max-width: 400px;
-  animation: fadeIn 0.3s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.login-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.login-icon {
-  margin-bottom: 1rem;
-  color: #3b82f6;
-}
-
-.login-header h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 0.5rem 0;
-}
-
-.login-header p {
-  color: #64748b;
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-wrapper svg {
-  position: absolute;
-  left: 0.75rem;
-  color: #9ca3af;
-}
-
-.input-wrapper input {
-  width: 100%;
-  padding: 0.625rem 0.75rem 0.625rem 2.25rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-  background: #ffffff;
-}
-
-.input-wrapper input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.login-btn {
-  width: 100%;
-  padding: 0.75rem;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.login-btn:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.login-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.loading-spinner {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid transparent;
-  border-top: 2px solid currentColor;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.error-message {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #dc2626;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  margin-top: 1rem;
-  font-size: 0.875rem;
-}
-
-.success-message {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #059669;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  margin-top: 1rem;
-  font-size: 0.875rem;
-}
-
-/* Дашборд */
 .dashboard {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
-  overflow: hidden;
+  background: #fff;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 18px 0 24px 0;
 }
-
 .dashboard-header {
-  background: #ffffff;
-  color: #1e293b;
-  padding: 1.5rem 2rem;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 18px;
 }
-
 .welcome-section h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0 0 0.25rem 0;
-  color: #1e293b;
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 2px;
+  color: var(--accent);
 }
-
 .welcome-section p {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.875rem;
+  color: #666;
+  font-size: 0.98rem;
 }
-
 .logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
+  background: none;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 7px 16px;
+  font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.875rem;
-  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
 }
-
 .logout-btn:hover {
-  background: #e2e8f0;
-  color: #1e293b;
+  background: #e0e7ff;
+  color: #222;
 }
-
 .dashboard-content {
-  padding: 2rem;
+  padding: 0 12px;
 }
-
-/* Статистика */
 .stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  display: flex;
+  gap: 18px;
+  margin-bottom: 18px;
 }
-
 .stat-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
-  padding: 1.5rem;
+  flex: 1;
+  background: #f5f7ff;
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  transition: all 0.2s;
+  padding: 12px 14px;
+  min-width: 0;
+  border: 1px solid #e0e0e0;
 }
-
-.stat-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
 .stat-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.375rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e0e7ff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  margin-right: 10px;
+  color: var(--accent);
 }
-
-.users-icon {
-  background: #3b82f6;
-}
-
-.active-icon {
-  background: #10b981;
-}
-
-.blocked-icon {
-  background: #ef4444;
-}
-
 .stat-info h3 {
-  font-size: 1.875rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: bold;
   margin: 0;
-  color: #1e293b;
+  color: var(--accent);
 }
-
 .stat-info p {
+  color: #666;
+  font-size: 0.98rem;
   margin: 0;
-  color: #64748b;
-  font-size: 0.875rem;
-  font-weight: 500;
 }
-
-/* Секция пользователей */
 .users-section {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
-  overflow: hidden;
+  margin-top: 18px;
 }
-
 .section-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  background: #f8fafc;
+  margin-bottom: 10px;
 }
-
 .section-header h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: bold;
   margin: 0;
-  color: #1e293b;
+  color: var(--accent);
 }
-
 .create-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-}
-
-.create-btn:hover {
-  background: #2563eb;
-}
-
-/* Таблица */
-.users-table {
-  overflow-x: auto;
-}
-
-.table-header {
-  display: grid;
-  grid-template-columns: 80px 1fr 120px 120px 150px;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: none;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 7px 16px;
   font-weight: 600;
-  color: #374151;
-  font-size: 0.875rem;
-}
-
-.table-row {
-  display: grid;
-  grid-template-columns: 80px 1fr 120px 120px 150px;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #f1f5f9;
-  align-items: center;
-  transition: background 0.2s;
-}
-
-.table-row:hover {
-  background: #f8fafc;
-}
-
-.table-cell {
+  font-size: 1rem;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  font-size: 0.875rem;
+  gap: 6px;
+  transition: background 0.2s, color 0.2s;
 }
-
+.create-btn:hover {
+  background: #e0e7ff;
+  color: #222;
+}
+.users-table {
+  background: #fff;
+  border-radius: 0;
+  box-shadow: none;
+  overflow-x: auto;
+  border: 1px solid #e0e0e0;
+}
+.table-header, .table-row {
+  display: flex;
+  align-items: center;
+  min-width: 700px;
+}
+.table-header {
+  background: #eef2ff;
+  font-weight: bold;
+  color: var(--accent);
+  border-radius: 0;
+  padding: 8px 0;
+}
+.table-row {
+  border-bottom: 1px solid #e0e0e0;
+  transition: background 0.15s;
+}
+.table-row:hover {
+  background: #f5f7ff;
+}
+.table-cell {
+  flex: 1;
+  padding: 8px 6px;
+  font-size: 1rem;
+  text-align: left;
+}
 .role-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 2px;
+  font-size: 0.95em;
+  font-weight: 600;
 }
-
 .role-badge.admin {
-  background: #fef3c7;
-  color: #92400e;
+  background: #fffbe6;
+  color: #b45309;
+  border: 1px solid #fde68a;
 }
-
 .role-badge.user {
-  background: #dbeafe;
-  color: #1e40af;
+  background: #e0e7ff;
+  color: var(--info);
+  border: 1px solid #a5b4fc;
 }
-
 .status-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 2px;
+  font-size: 0.95em;
+  font-weight: 600;
 }
-
 .status-badge.active {
   background: #d1fae5;
-  color: #065f46;
+  color: var(--success);
+  border: 1px solid #6ee7b7;
 }
-
 .status-badge.blocked {
   background: #fee2e2;
-  color: #991b1b;
+  color: var(--danger);
+  border: 1px solid #fecaca;
 }
-
+.status-badge.connected {
+  background: #e0f2fe;
+  color: var(--info);
+  border: 1px solid #bae6fd;
+}
+.status-badge.disconnected {
+  background: #f3f4f6;
+  color: #64748b;
+  border: 1px solid #e5e7eb;
+}
 .action-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  background: none;
+  color: var(--accent);
+  margin-right: 6px;
+  transition: background 0.18s, color 0.18s, border 0.18s;
 }
-
 .action-btn.block {
-  background: #fee2e2;
-  color: #991b1b;
-  border-color: #fecaca;
+  border-color: var(--danger);
+  color: var(--danger);
 }
-
-.action-btn.block:hover {
-  background: #fecaca;
-}
-
 .action-btn.unblock {
-  background: #d1fae5;
-  color: #065f46;
-  border-color: #bbf7d0;
+  border-color: var(--success);
+  color: var(--success);
 }
-
-.action-btn.unblock:hover {
-  background: #bbf7d0;
+.action-btn.connect {
+  border-color: var(--info);
+  color: var(--info);
 }
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.action-btn:hover {
+  background: #eef2ff;
+  color: #222;
 }
-
-/* Пустое состояние */
 .empty-state {
   text-align: center;
-  padding: 3rem;
   color: #64748b;
-}
-
-.empty-state svg {
-  margin-bottom: 1rem;
-  opacity: 0.4;
-}
-
-.empty-state h4 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem 0;
-  color: #475569;
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-/* Модальное окно */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #f8fafc;
-}
-
-.modal-header h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  margin: 0;
-  color: #1e293b;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  color: #64748b;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: #e2e8f0;
-  color: #374151;
-}
-
-.modal-form {
-  padding: 1.5rem;
-}
-
-.modal-form .form-group {
-  margin-bottom: 1.5rem;
-}
-
-.modal-form input {
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-  background: #ffffff;
-}
-
-.modal-form input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.checkbox-group {
-  margin-bottom: 1.5rem;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.875rem;
-}
-
-.checkbox-label input[type="checkbox"] {
-  display: none;
-}
-
-.checkmark {
-  width: 1.125rem;
-  height: 1.125rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.25rem;
-  position: relative;
-  transition: all 0.2s;
-}
-
-.checkbox-label input[type="checkbox"]:checked + .checkmark {
-  background: #3b82f6;
-  border-color: #3b82f6;
-}
-
-.checkbox-label input[type="checkbox"]:checked + .checkmark::after {
-  content: '';
-  position: absolute;
-  left: 0.1875rem;
-  top: 0.0625rem;
-  width: 0.4375rem;
-  height: 0.6875rem;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.modal-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-.cancel-btn {
-  flex: 1;
-  padding: 0.625rem;
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.875rem;
-}
-
-.cancel-btn:hover {
-  background: #e2e8f0;
-  color: #1e293b;
-}
-
-.submit-btn {
-  flex: 1;
-  padding: 0.625rem;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.submit-btn:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Адаптивность */
-@media (max-width: 768px) {
-  .admin-content {
-    padding: 1rem;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .table-header,
-  .table-row {
-    grid-template-columns: 60px 1fr 100px 100px 120px;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-  }
-  
-  .dashboard-header {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
-  }
-  
-  .section-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-  
-  .create-btn {
-    justify-content: center;
-  }
+  padding: 24px 0;
 }
 </style> 

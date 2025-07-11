@@ -6,9 +6,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
-import { exportExcel } from '../utils/export'
-import { isFunction } from '../utils/is'
+import { ref, onMounted, watch, nextTick, defineEmits } from 'vue'
 import LuckyExcel from 'luckyexcel'
 
 const props = defineProps({
@@ -17,6 +15,8 @@ const props = defineProps({
     default: null
   }
 })
+
+const emit = defineEmits(['update:fileData'])
 
 const isMaskShow = ref(false)
 const jsonData = ref({})
@@ -41,7 +41,7 @@ const createLuckySheet = async (data, title = 'Новый файл') => {
   }
   
   // Уничтожаем предыдущий экземпляр
-  if (isFunction(window?.luckysheet?.destroy)) {
+  if (window?.luckysheet?.destroy) {
     window.luckysheet.destroy()
   }
 
@@ -118,7 +118,12 @@ const createLuckySheet = async (data, title = 'Новый файл') => {
       // Включаем вкладки листов
       showSheetTab: true,
       // Включаем статусную строку
-      showStatusBar: true
+      showStatusBar: true,
+      hook: {
+        updated: emitDataUpdate,
+        cellUpdated: emitDataUpdate,
+        // Можно добавить другие хуки, если нужно
+      }
     })
     
     isInitialized.value = true
@@ -398,6 +403,9 @@ onMounted(async () => {
       }
     })
   }
+
+  // После создания LuckySheet добавляем обработчик изменений
+  // addChangeHandler(); // Удален
 })
 
 // Функция для добавления защиты от копирования
@@ -485,6 +493,23 @@ const addBooleanToggleHandlers = () => {
     })
   }, 500)
 }
+
+// Функция для отправки актуальных данных в родительский компонент
+const emitDataUpdate = () => {
+  if (window.luckysheet && typeof window.luckysheet.getAllSheets === 'function') {
+    const newData = window.luckysheet.getAllSheets();
+    emit('update:fileData', { ...props.fileData, data: newData });
+  }
+}
+
+// Добавляем обработчик событий LuckySheet для отслеживания изменений
+// addChangeHandler = () => { // Удален
+//   if (window.luckysheet) {
+//     window.luckysheet.on('cellUpdated', emitDataUpdate)
+//     window.luckysheet.on('sheetChanged', emitDataUpdate)
+//     // Можно добавить другие события при необходимости
+//   }
+// } // Удален
 </script>
 
 <style scoped>

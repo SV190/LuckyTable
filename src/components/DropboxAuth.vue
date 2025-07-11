@@ -7,7 +7,7 @@
         </svg>
         <div class="user-details">
           <h4>Подключено к Dropbox</h4>
-          <p>{{ userInfo?.email || 'Загрузка...' }}</p>
+          <p>{{ userInfo?.email || userInfo?.account_id || 'Загрузка...' }}</p>
         </div>
       </div>
       <div class="storage-info">
@@ -15,6 +15,8 @@
           <div class="storage-used" :style="{ width: storagePercentage + '%' }"></div>
         </div>
         <p class="storage-text">{{ storageUsed }} из {{ storageTotal }} использовано</p>
+        <!-- ВРЕМЕННО: выводим userInfo для диагностики -->
+        <pre style="font-size:10px; color:#888; background:#f3f3f3; padding:4px; border-radius:4px;">{{ userInfo }}</pre>
       </div>
       <div class="sync-controls">
         <button @click="logout" class="logout-btn">Отключиться</button>
@@ -72,27 +74,28 @@ const login = async () => {
 const loadStorageInfo = async () => {
   try {
     const userInfoResult = await dropboxStorage.getUserInfo()
-    if (userInfoResult) {
-      userInfo.value = userInfoResult
-      // Dropbox API возвращает размер в байтах
-      const usedBytes = userInfoResult.spaceUsed
-      const totalBytes = userInfoResult.spaceTotal
-      // Функция для форматирования размера
-      const formatSize = (bytes) => {
-        if (bytes >= 1024 * 1024 * 1024) {
-          return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
-        } else if (bytes >= 1024 * 1024) {
-          return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-        } else if (bytes >= 1024) {
-          return (bytes / 1024).toFixed(1) + ' KB'
-        } else {
-          return bytes + ' B'
-        }
+    console.log('DIAG: userInfoResult =', userInfoResult)
+    userInfo.value = userInfoResult
+    // ВРЕМЕННО: выводим userInfo для диагностики
+    window._dropboxUserInfo = userInfoResult
+    // Dropbox API возвращает размер в байтах
+    const usedBytes = userInfoResult.spaceUsed
+    const totalBytes = userInfoResult.spaceTotal
+    // Функция для форматирования размера
+    const formatSize = (bytes) => {
+      if (bytes >= 1024 * 1024 * 1024) {
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+      } else if (bytes >= 1024 * 1024) {
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+      } else if (bytes >= 1024) {
+        return (bytes / 1024).toFixed(1) + ' KB'
+      } else {
+        return bytes + ' B'
       }
-      storageUsed.value = formatSize(usedBytes)
-      storageTotal.value = formatSize(totalBytes)
-      storagePercentage.value = Math.round((usedBytes / totalBytes) * 100)
     }
+    storageUsed.value = formatSize(usedBytes)
+    storageTotal.value = formatSize(totalBytes)
+    storagePercentage.value = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0
   } catch (error) {
     console.error('Ошибка загрузки информации о хранилище:', error)
     if (error.message.includes('повторная авторизация')) {

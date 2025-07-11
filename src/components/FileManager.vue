@@ -1,485 +1,488 @@
 <template>
-  <div class="file-manager"
-    @dragover.prevent.stop="handleDragEnter"
-    @dragleave.prevent.stop="handleDragLeave"
-    @drop.prevent.stop="handleFileUploadDrop"
-  >
-    <div class="sidebar">
-        <div class="logo-container">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-            <h3>LuckySheet</h3>
-        </div>
-        <div class="folder-tree">
-          <template v-for="folder in folderTree" :key="folder.id">
-            <div :class="['folder-item', { active: currentFolder === folder.id }]" @click="setCurrentFolder(folder.id)" :style="{ '--folder-color': getFolderColor(folder.id) }">
-              <div class="folder-item-content">
-                <div class="folder-color-dot" :style="{ backgroundColor: getFolderColor(folder.id) }">
-                  <span v-if="hoveredFolderId === folder.id" class="file-count" :style="{ backgroundColor: getFolderColor(folder.id), color: getTextColorForBackground(getFolderColor(folder.id)) }">{{ getItemCountInFolder(folder) }}</span>
+  <div>
+    <div class="file-manager"
+      @dragover.prevent.stop="handleDragEnter"
+      @dragleave.prevent.stop="handleDragLeave"
+      @drop.prevent.stop="handleFileUploadDrop"
+    >
+      <div class="sidebar">
+          <div class="logo-container">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              <h3>LuckySheet</h3>
+          </div>
+          <div class="folder-tree">
+            <template v-for="folder in folderTree" :key="folder.id">
+              <div :class="['folder-item', { active: currentFolder === folder.id }]" @click="setCurrentFolder(folder.id)" :style="{ '--folder-color': getFolderColor(folder.id) }">
+                <div class="folder-item-content">
+                  <div class="folder-color-dot" :style="{ backgroundColor: getFolderColor(folder.id) }">
+                    <span v-if="hoveredFolderId === folder.id" class="file-count" :style="{ backgroundColor: getFolderColor(folder.id), color: getTextColorForBackground(getFolderColor(folder.id)) }">{{ getItemCountInFolder(folder) }}</span>
+                  </div>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>{{ folder.name }}</span>
                 </div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              </div>
+              <!-- Рекурсивно отображаем дочерние папки -->
+              <template v-if="folder.children && folder.children.length > 0">
+                <div v-for="child in folder.children" :key="child.id" :class="['folder-item', 'folder-item--child', { active: currentFolder === child.id }]" @click="setCurrentFolder(child.id)" :style="{ '--folder-color': getFolderColor(child.id) }">
+                  <div class="folder-item-content">
+                    <div class="folder-color-dot" :style="{ backgroundColor: getFolderColor(child.id) }">
+                      <span v-if="hoveredFolderId === child.id" class="file-count" :style="{ backgroundColor: getFolderColor(child.id), color: getTextColorForBackground(getFolderColor(child.id)) }">{{ getItemCountInFolder(child) }}</span>
+                    </div>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(child.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>{{ child.name }}</span>
+                  </div>
+                </div>
+              </template>
+            </template>
+            <button @click="addFolder" class="add-folder-btn styled-add-folder">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Новая папка</span>
+            </button>
+          </div>
+          
+          <div class="sidebar-footer">
+              <button @click="toggleSettings" class="sidebar-btn settings-btn" style="width: 100%; margin-bottom: 10px;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                  <span>Настройки</span>
+              </button>
+              
+              <div v-if="isDropboxAuthenticated && storageInfo" class="storage-info">
+                  <div class="storage-text">
+                      <span>{{ storageInfo.usedGB }}</span>
+                      <span class="storage-separator">/</span>
+                      <span>{{ storageInfo.totalGB }}</span>
+                  </div>
+                  <div class="storage-bar">
+                      <div class="storage-used" :style="{ width: storageInfo.percentage + '%' }"></div>
+                  </div>
+                  <div class="storage-label">Dropbox</div>
+              </div>
+              <div v-if="user" class="user-block" style="margin-top: 18px;">
+                <div class="user-avatar">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="7" r="4"/>
+                    <path d="M5.5 21a7.5 7.5 0 0 1 13 0"/>
+                  </svg>
+                </div>
+                <div class="user-info">
+                  <div class="username">{{ user.username }}</div>
+                  <div v-if="isAdmin" class="role-badge">Админ</div>
+                </div>
+              </div>
+              <button v-if="isAdmin" @click="handleGoToAdmin" class="sidebar-btn admin-panel-link" style="margin-top: 12px; width: 100%;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                Админ-панель
+              </button>
+              <button class="sidebar-btn logout" @click="handleLogout" style="margin-top: 16px; width: 100%;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16,17 21,12 16,7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Выйти
+              </button>
+          </div>
+      </div>
+
+      <div class="main-content">
+        <div class="main-header">
+          <h2 class="header-title">{{ folderTitle }}</h2>
+          <div class="header-actions">
+            <input id="fileUpload" type="file" @change="handleFileUpload" accept=".xlsx,.xls" multiple hidden />
+            <button @click="triggerFileUpload" class="btn upload-btn">Загрузить</button>
+          </div>
+        </div>
+
+        <div class="breadcrumb">
+          <span v-for="(crumb, idx) in getBreadcrumbs" :key="crumb.id">
+            <span class="breadcrumb-link" @click="goToFolder(crumb.id)">{{ crumb.name }}</span>
+            <span v-if="idx < getBreadcrumbs.length - 1" class="breadcrumb-sep">/</span>
+          </span>
+        </div>
+
+        <div class="search-bar">
+          <input v-model="searchQuery" type="text" placeholder="Поиск файлов и папок..." />
+        </div>
+
+        <div class="tile-grid" @contextmenu="showEmptySpaceContextMenu">
+          <div v-if="isLoadingFiles" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Загрузка файлов из Dropbox...</p>
+          </div>
+          <template v-else>
+            <div v-for="folder in filteredFolders" :key="'folder-' + folder.id" class="tile tile--folder" @click="setCurrentFolder(folder.id)" @mouseenter="fetchItemCountForFolder(folder); hoveredFolderId = folder.id" @mouseleave="hoveredFolderId = null" :style="{ '--folder-border-color': getFolderColor(folder.id) }" @contextmenu.stop="showFolderContextMenu($event, folder)" draggable="true" @dragstart="handleFolderDragStart($event, folder)" @dragover="handleDragOver($event)" @drop="handleFolderDrop($event, folder)">
+              <div class="tile-icon tile-icon--folder" :style="{ backgroundColor: hoveredFolderId === folder.id ? getFolderHoverBgColor(getFolderColor(folder.id)) : getFolderBgColor(getFolderColor(folder.id)) }">
+                <span v-if="hoveredFolderId === folder.id && loadingCounts[folder.id]" class="file-count" :style="{ backgroundColor: getFolderColor(folder.id), color: getTextColorForBackground(getFolderColor(folder.id)) }">{{ getItemCountInFolder(folder) }}</span>
+                <span v-else-if="hoveredFolderId === folder.id" class="file-count" :style="{ backgroundColor: getFolderColor(folder.id), color: getTextColorForBackground(getFolderColor(folder.id)) }">{{ countsByFolderId[folder.id] ?? 0 }}</span>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                 </svg>
+              </div>
+              <div class="tile-name" :title="folder.name">{{ folder.name }}</div>
+            </div>
+            <div v-for="file in filteredFiles" :key="'file-' + file.id" class="tile tile--file" @click="openFile(file)" @contextmenu.stop="showContextMenu($event, file)" draggable="true" @dragstart="handleDragStart($event, file)" @dragover.prevent @drop="handleFileDrop($event, file)">
+              <div class="tile-icon tile-icon--table">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M3 9h18M9 21V3"/>
+                </svg>
+              </div>
+              <div class="tile-name" :title="file.name">{{ file.name }}</div>
+            </div>
+            <div v-if="filteredFolders.length === 0 && filteredFiles.length === 0" class="empty-state">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10,9 9,9 8,9"></polyline>
+              </svg>
+              <p>Нет файлов в этой папке</p>
+              <button class="btn btn-primary" @click="showCreateFolderModal = true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Создать папку
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+      
+      <div v-if="isDragOver" class="drag-overlay">
+          <div class="drag-content">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <h3>Перетащите файлы для загрузки</h3>
+          </div>
+      </div>
+
+      <!-- Модальное окно настроек -->
+      <div v-if="showSettings" class="modal-overlay" @click="toggleSettings">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h3>Настройки</h3>
+            <button @click="toggleSettings" class="close-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="storage-tabs">
+              <button 
+                class="tab-btn" 
+                :class="{ active: activeStorage === 'dropbox' }"
+                @click="activeStorage = 'dropbox'"
+              >
+                Dropbox
+              </button>
+            </div>
+            
+            <div class="storage-content">
+              <DropboxAuth 
+                @auth-changed="handleDropboxAuthChanged"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="showMoveFileModal" class="modal-overlay" @click="closeMoveModal">
+        <div class="modal-content move-modal" @click.stop>
+          <div class="modal-header">
+            <h3>Переместить файл</h3>
+            <button @click="closeMoveModal" class="close-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="file-info">
+              <div class="file-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M3 9h18M9 21V3"/>
+                </svg>
+              </div>
+              <div class="file-details">
+                <div class="file-name">{{ fileToMove?.name }}</div>
+                <div class="file-path">{{ fileToMove?.path }}</div>
+              </div>
+            </div>
+            
+            <div class="section-title">Выберите папку назначения:</div>
+            
+            <div class="folder-grid">
+              <div v-for="folder in folders.filter(f => f.path !== (fileToMove?.path ? fileToMove.path.substring(0, fileToMove.path.lastIndexOf('/')) : ''))" :key="folder.id" class="folder-card" @click="handleMoveToFolder(folder)">
+                <div class="folder-icon">
+                  <div class="folder-color-circle-modal" :style="{ backgroundColor: getFolderColor(folder.id) }"></div>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div class="folder-name">{{ folder.name }}</div>
+                <div class="folder-path">{{ folder.path || 'Корневая папка' }}</div>
+              </div>
+            </div>
+            
+            <div class="modal-actions">
+              <button @click="closeMoveModal" class="btn btn-secondary">Отмена</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Контекстное меню -->
+      <div v-if="contextMenu.show" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
+        <div class="context-menu-item" @click="renameFile(contextMenu.file)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          <span>Переименовать</span>
+        </div>
+        <div class="context-menu-item" @click="moveFile(contextMenu.file)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9,22 9,12 15,12 15,22"></polyline>
+          </svg>
+          <span>Переместить</span>
+        </div>
+        <div class="context-menu-item context-menu-item--danger" @click="deleteFile(contextMenu.file)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3,6 5,6 21,6"></polyline>
+            <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+          </svg>
+          <span>Удалить</span>
+        </div>
+      </div>
+
+      <!-- Контекстное меню для папок -->
+      <div v-if="folderContextMenu.show" class="context-menu" :style="{ left: folderContextMenu.x + 'px', top: folderContextMenu.y + 'px' }">
+        <div class="context-menu-item" @click="renameFolder(folderContextMenu.folder)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          <span>Переименовать</span>
+        </div>
+        <div class="context-menu-item" @click="moveFolder(folderContextMenu.folder)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9,22 9,12 15,12 15,22"></polyline>
+          </svg>
+          <span>Переместить</span>
+        </div>
+        <div v-if="folderContextMenu.folder?.id !== 'root'" class="context-menu-item context-menu-item--danger" @click="deleteFolderFromContext(folderContextMenu.folder)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3,6 5,6 21,6"></polyline>
+            <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+          </svg>
+          <span>Удалить</span>
+        </div>
+      </div>
+
+      <!-- Контекстное меню для пустого места -->
+      <div v-if="emptySpaceContextMenu.show" class="context-menu" :style="{ left: emptySpaceContextMenu.x + 'px', top: emptySpaceContextMenu.y + 'px' }">
+        <div class="context-menu-item" @click="createFolderFromContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Создать папку</span>
+        </div>
+      </div>
+
+      <!-- Модальное окно создания папки -->
+      <div v-if="showCreateFolderModal" class="modal-overlay" @click="closeCreateFolderModal">
+        <div class="modal modal--create-folder" @click.stop>
+          <div class="modal-header">
+            <h3>Создать новую папку</h3>
+            <button @click="closeCreateFolderModal" class="close-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="folderName">Название папки:</label>
+              <input 
+                id="folderName" 
+                v-model="newFolderName" 
+                type="text" 
+                placeholder="Введите название папки"
+                @keyup.enter="createFolder"
+                required 
+              />
+            </div>
+            
+            <div class="form-group">
+              <label>Цвет папки:</label>
+              <div class="color-picker-container">
+                <div class="color-preview" :style="{ backgroundColor: selectedFolderColor }"></div>
+                <input 
+                  v-model="selectedFolderColor" 
+                  type="color" 
+                  class="color-input"
+                />
+                <div class="color-presets">
+                  <div 
+                    v-for="color in ['#FEF3C7', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#F97316', '#EC4899', '#84CC16', '#6366F1']" 
+                    :key="color"
+                    class="color-preset"
+                    :style="{ backgroundColor: color }"
+                    @click="selectedFolderColor = color"
+                  ></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="folder-preview">
+              <div class="preview-label">Предварительный просмотр:</div>
+              <div class="preview-folder">
+                <div class="folder-item-content">
+                  <div class="folder-color-dot" :style="{ backgroundColor: selectedFolderColor }"></div>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="selectedFolderColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>{{ newFolderName || 'Название папки' }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="modal-actions">
+              <button @click="closeCreateFolderModal" class="btn btn-secondary">Отмена</button>
+              <button @click="createFolder" class="btn btn-primary" :disabled="!newFolderName.trim()">Создать</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Модальное окно редактирования папки -->
+      <div v-if="showEditFolderModal" class="modal-overlay" @click="closeEditFolderModal">
+        <div class="modal-content edit-modal" @click.stop>
+          <div class="modal-header">
+            <h3>Редактировать папку</h3>
+            <button @click="closeEditFolderModal" class="close-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="editFolderName">Название папки:</label>
+              <input 
+                id="editFolderName" 
+                v-model="editFolderName" 
+                type="text" 
+                placeholder="Введите новое название папки"
+                @keyup.enter="saveFolder"
+                required 
+              />
+            </div>
+            
+            <div class="form-group">
+              <label>Цвет папки:</label>
+              <div class="color-picker-container">
+                <div class="color-preview" :style="{ backgroundColor: editFolderColor }"></div>
+                <input 
+                  v-model="editFolderColor" 
+                  type="color" 
+                  class="color-input"
+                />
+                <div class="color-presets">
+                  <div 
+                    v-for="color in ['#FEF3C7', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#F97316', '#EC4899', '#84CC16', '#6366F1']" 
+                    :key="color"
+                    class="color-preset"
+                    :style="{ backgroundColor: color }"
+                    @click="editFolderColor = color"
+                  ></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="folder-preview">
+              <div class="preview-label">Предварительный просмотр:</div>
+              <div class="preview-folder">
+                <div class="folder-item-content">
+                  <div class="folder-color-dot" :style="{ backgroundColor: editFolderColor }"></div>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="editFolderColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>{{ editFolderName || 'Название папки' }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="modal-actions">
+              <button @click="closeEditFolderModal" class="btn btn-secondary">Отмена</button>
+              <button @click="saveFolder" class="btn btn-primary" :disabled="!editFolderName.trim()">Сохранить</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Модальное окно перемещения папки -->
+      <div v-if="showMoveFolderModal" class="modal-overlay" @click="closeMoveFolderModal">
+        <div class="modal modal--move-folder" @click.stop>
+          <div class="modal-header">
+            <h3>Переместить папку "{{ folderToMove?.name }}"</h3>
+            <button class="modal-close" @click="closeMoveFolderModal">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-description">Выберите папку назначения:</p>
+            <div class="folder-list">
+              <div class="folder-item folder-item--root" @click="handleMoveFolderToFolder({ id: 'root', name: 'Корневая папка', path: '' })">
+                <div class="folder-icon folder-icon--root">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <span>Корневая папка</span>
+              </div>
+              <div v-for="folder in folders.filter(f => f.id !== folderToMove?.id)" :key="folder.id" class="folder-item" @click="handleMoveFolderToFolder(folder)">
+                <div class="folder-icon" :style="{ backgroundColor: getFolderBgColor(getFolderColor(folder.id)) }">
+                  <div class="folder-color-circle" :style="{ backgroundColor: getFolderColor(folder.id) }"></div>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
                 <span>{{ folder.name }}</span>
               </div>
             </div>
-            <!-- Рекурсивно отображаем дочерние папки -->
-            <template v-if="folder.children && folder.children.length > 0">
-              <div v-for="child in folder.children" :key="child.id" :class="['folder-item', 'folder-item--child', { active: currentFolder === child.id }]" @click="setCurrentFolder(child.id)" :style="{ '--folder-color': getFolderColor(child.id) }">
-                <div class="folder-item-content">
-                  <div class="folder-color-dot" :style="{ backgroundColor: getFolderColor(child.id) }">
-                    <span v-if="hoveredFolderId === child.id" class="file-count" :style="{ backgroundColor: getFolderColor(child.id), color: getTextColorForBackground(getFolderColor(child.id)) }">{{ getItemCountInFolder(child) }}</span>
-                  </div>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(child.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  <span>{{ child.name }}</span>
-                </div>
-              </div>
-            </template>
-          </template>
-          <button @click="addFolder" class="add-folder-btn styled-add-folder">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>Новая папка</span>
-          </button>
-        </div>
-        
-        <div class="sidebar-footer">
-            <button @click="toggleSettings" class="sidebar-btn settings-btn" style="width: 100%; margin-bottom: 10px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="3"></circle>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                </svg>
-                <span>Настройки</span>
-            </button>
-            
-            <div v-if="isDropboxAuthenticated && storageInfo" class="storage-info">
-                <div class="storage-text">
-                    <span>{{ storageInfo.usedGB }}</span>
-                    <span class="storage-separator">/</span>
-                    <span>{{ storageInfo.totalGB }}</span>
-                </div>
-                <div class="storage-bar">
-                    <div class="storage-used" :style="{ width: storageInfo.percentage + '%' }"></div>
-                </div>
-                <div class="storage-label">Dropbox</div>
-            </div>
-            <div v-if="user" class="user-block" style="margin-top: 18px;">
-              <div class="user-avatar">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="7" r="4"/>
-                  <path d="M5.5 21a7.5 7.5 0 0 1 13 0"/>
-                </svg>
-              </div>
-              <div class="user-info">
-                <div class="username">{{ user.username }}</div>
-                <div v-if="isAdmin" class="role-badge">Админ</div>
-              </div>
-            </div>
-            <router-link v-if="isAdmin" to="/admin" class="sidebar-btn admin-panel-link" style="margin-top: 12px; width: 100%;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-              Админ-панель
-            </router-link>
-            <button class="sidebar-btn logout" @click="logout" style="margin-top: 16px; width: 100%;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16,17 21,12 16,7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
-              Выйти
-            </button>
-        </div>
-    </div>
-
-    <div class="main-content">
-      <div class="main-header">
-        <h2 class="header-title">{{ folderTitle }}</h2>
-        <div class="header-actions">
-          <input id="fileUpload" type="file" @change="handleFileUpload" accept=".xlsx,.xls" multiple hidden />
-          <button @click="triggerFileUpload" class="btn upload-btn">Загрузить</button>
+          </div>
         </div>
       </div>
 
-      <div class="breadcrumb">
-        <span v-for="(crumb, idx) in getBreadcrumbs" :key="crumb.id">
-          <span class="breadcrumb-link" @click="goToFolder(crumb.id)">{{ crumb.name }}</span>
-          <span v-if="idx < getBreadcrumbs.length - 1" class="breadcrumb-sep">/</span>
-        </span>
+      <div v-if="isOpeningFile" class="global-loading-overlay">
+        <div class="global-loading-spinner"></div>
+        <div class="global-loading-text">Загрузка таблицы...</div>
       </div>
-
-      <div class="search-bar">
-        <input v-model="searchQuery" type="text" placeholder="Поиск файлов и папок..." />
-      </div>
-
-      <div class="tile-grid" @contextmenu="showEmptySpaceContextMenu">
-        <div v-if="isLoadingFiles" class="loading-state">
-          <div class="loading-spinner"></div>
-          <p>Загрузка файлов из Dropbox...</p>
-        </div>
-        <template v-else>
-          <div v-for="folder in filteredFolders" :key="'folder-' + folder.id" class="tile tile--folder" @click="setCurrentFolder(folder.id)" @mouseenter="hoveredFolderId = folder.id" @mouseleave="hoveredFolderId = null" :style="{ '--folder-border-color': getFolderColor(folder.id) }" @contextmenu.stop="showFolderContextMenu($event, folder)" draggable="true" @dragstart="handleFolderDragStart($event, folder)" @dragover="handleDragOver($event)" @drop="handleFolderDrop($event, folder)">
-            <div class="tile-icon tile-icon--folder" :style="{ backgroundColor: hoveredFolderId === folder.id ? getFolderHoverBgColor(getFolderColor(folder.id)) : getFolderBgColor(getFolderColor(folder.id)) }">
-              <span v-if="hoveredFolderId === folder.id" class="file-count" :style="{ backgroundColor: getFolderColor(folder.id), color: getTextColorForBackground(getFolderColor(folder.id)) }">{{ getItemCountInFolder(folder) }}</span>
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </div>
-            <div class="tile-name" :title="folder.name">{{ folder.name }}</div>
-          </div>
-          <div v-for="file in filteredFiles" :key="'file-' + file.id" class="tile tile--file" @click="openFile(file)" @contextmenu.stop="showContextMenu($event, file)" draggable="true" @dragstart="handleDragStart($event, file)" @dragover.prevent @drop="handleFileDrop($event, file)">
-            <div class="tile-icon tile-icon--table">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M3 9h18M9 21V3"/>
-              </svg>
-            </div>
-            <div class="tile-name" :title="file.name">{{ file.name }}</div>
-          </div>
-          <div v-if="filteredFolders.length === 0 && filteredFiles.length === 0" class="empty-state">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14,2 14,8 20,8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10,9 9,9 8,9"></polyline>
-            </svg>
-            <p>Нет файлов в этой папке</p>
-            <button class="btn btn-primary" @click="showCreateFolderModal = true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Создать папку
-            </button>
-          </div>
-        </template>
-      </div>
-    </div>
-    
-    <div v-if="isDragOver" class="drag-overlay">
-        <div class="drag-content">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            <h3>Перетащите файлы для загрузки</h3>
-        </div>
-    </div>
-
-    <!-- Модальное окно настроек -->
-    <div v-if="showSettings" class="modal-overlay" @click="toggleSettings">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Настройки</h3>
-          <button @click="toggleSettings" class="close-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="storage-tabs">
-            <button 
-              class="tab-btn" 
-              :class="{ active: activeStorage === 'dropbox' }"
-              @click="activeStorage = 'dropbox'"
-            >
-              Dropbox
-            </button>
-          </div>
-          
-          <div class="storage-content">
-            <DropboxAuth 
-              @auth-changed="handleDropboxAuthChanged"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="showMoveModal" class="modal-overlay" @click="closeMoveModal">
-      <div class="modal-content move-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Переместить файл</h3>
-          <button @click="closeMoveModal" class="close-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="file-info">
-            <div class="file-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M3 9h18M9 21V3"/>
-              </svg>
-            </div>
-            <div class="file-details">
-              <div class="file-name">{{ fileToMove?.name }}</div>
-              <div class="file-path">{{ fileToMove?.path }}</div>
-            </div>
-          </div>
-          
-          <div class="section-title">Выберите папку назначения:</div>
-          
-          <div class="folder-grid">
-            <div v-for="folder in folders.filter(f => f.path !== (fileToMove?.path ? fileToMove.path.substring(0, fileToMove.path.lastIndexOf('/')) : ''))" :key="folder.id" class="folder-card" @click="handleMoveToFolder(folder)">
-              <div class="folder-icon">
-                <div class="folder-color-circle-modal" :style="{ backgroundColor: getFolderColor(folder.id) }"></div>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </div>
-              <div class="folder-name">{{ folder.name }}</div>
-              <div class="folder-path">{{ folder.path || 'Корневая папка' }}</div>
-            </div>
-          </div>
-          
-          <div class="modal-actions">
-            <button @click="closeMoveModal" class="btn btn-secondary">Отмена</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Контекстное меню -->
-    <div v-if="contextMenu.show" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
-      <div class="context-menu-item" @click="renameFile(contextMenu.file)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-        </svg>
-        <span>Переименовать</span>
-      </div>
-      <div class="context-menu-item" @click="moveFile(contextMenu.file)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9,22 9,12 15,12 15,22"></polyline>
-        </svg>
-        <span>Переместить</span>
-      </div>
-      <div class="context-menu-item context-menu-item--danger" @click="deleteFile(contextMenu.file)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3,6 5,6 21,6"></polyline>
-          <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
-        </svg>
-        <span>Удалить</span>
-      </div>
-    </div>
-
-    <!-- Контекстное меню для папок -->
-    <div v-if="folderContextMenu.show" class="context-menu" :style="{ left: folderContextMenu.x + 'px', top: folderContextMenu.y + 'px' }">
-      <div class="context-menu-item" @click="renameFolder(folderContextMenu.folder)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-        </svg>
-        <span>Переименовать</span>
-      </div>
-      <div class="context-menu-item" @click="moveFolder(folderContextMenu.folder)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9,22 9,12 15,12 15,22"></polyline>
-        </svg>
-        <span>Переместить</span>
-      </div>
-      <div v-if="folderContextMenu.folder?.id !== 'root'" class="context-menu-item context-menu-item--danger" @click="deleteFolderFromContext(folderContextMenu.folder)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3,6 5,6 21,6"></polyline>
-          <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
-        </svg>
-        <span>Удалить</span>
-      </div>
-    </div>
-
-    <!-- Контекстное меню для пустого места -->
-    <div v-if="emptySpaceContextMenu.show" class="context-menu" :style="{ left: emptySpaceContextMenu.x + 'px', top: emptySpaceContextMenu.y + 'px' }">
-      <div class="context-menu-item" @click="createFolderFromContext">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>Создать папку</span>
-      </div>
-    </div>
-
-    <!-- Модальное окно создания папки -->
-    <div v-if="showCreateFolderModal" class="modal-overlay" @click="closeCreateFolderModal">
-      <div class="modal modal--create-folder" @click.stop>
-        <div class="modal-header">
-          <h3>Создать новую папку</h3>
-          <button @click="closeCreateFolderModal" class="close-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="folderName">Название папки:</label>
-            <input 
-              id="folderName" 
-              v-model="newFolderName" 
-              type="text" 
-              placeholder="Введите название папки"
-              @keyup.enter="createFolder"
-              required 
-            />
-          </div>
-          
-          <div class="form-group">
-            <label>Цвет папки:</label>
-            <div class="color-picker-container">
-              <div class="color-preview" :style="{ backgroundColor: selectedFolderColor }"></div>
-              <input 
-                v-model="selectedFolderColor" 
-                type="color" 
-                class="color-input"
-              />
-              <div class="color-presets">
-                <div 
-                  v-for="color in ['#FEF3C7', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#F97316', '#EC4899', '#84CC16', '#6366F1']" 
-                  :key="color"
-                  class="color-preset"
-                  :style="{ backgroundColor: color }"
-                  @click="selectedFolderColor = color"
-                ></div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="folder-preview">
-            <div class="preview-label">Предварительный просмотр:</div>
-            <div class="preview-folder">
-              <div class="folder-item-content">
-                <div class="folder-color-dot" :style="{ backgroundColor: selectedFolderColor }"></div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="selectedFolderColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-                <span>{{ newFolderName || 'Название папки' }}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div class="modal-actions">
-            <button @click="closeCreateFolderModal" class="btn btn-secondary">Отмена</button>
-            <button @click="createFolder" class="btn btn-primary" :disabled="!newFolderName.trim()">Создать</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Модальное окно редактирования папки -->
-    <div v-if="showEditFolderModal" class="modal-overlay" @click="closeEditFolderModal">
-      <div class="modal-content edit-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Редактировать папку</h3>
-          <button @click="closeEditFolderModal" class="close-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="editFolderName">Название папки:</label>
-            <input 
-              id="editFolderName" 
-              v-model="editFolderName" 
-              type="text" 
-              placeholder="Введите новое название папки"
-              @keyup.enter="saveFolder"
-              required 
-            />
-          </div>
-          
-          <div class="form-group">
-            <label>Цвет папки:</label>
-            <div class="color-picker-container">
-              <div class="color-preview" :style="{ backgroundColor: editFolderColor }"></div>
-              <input 
-                v-model="editFolderColor" 
-                type="color" 
-                class="color-input"
-              />
-              <div class="color-presets">
-                <div 
-                  v-for="color in ['#FEF3C7', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#F97316', '#EC4899', '#84CC16', '#6366F1']" 
-                  :key="color"
-                  class="color-preset"
-                  :style="{ backgroundColor: color }"
-                  @click="editFolderColor = color"
-                ></div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="folder-preview">
-            <div class="preview-label">Предварительный просмотр:</div>
-            <div class="preview-folder">
-              <div class="folder-item-content">
-                <div class="folder-color-dot" :style="{ backgroundColor: editFolderColor }"></div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="editFolderColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-                <span>{{ editFolderName || 'Название папки' }}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div class="modal-actions">
-            <button @click="closeEditFolderModal" class="btn btn-secondary">Отмена</button>
-            <button @click="saveFolder" class="btn btn-primary" :disabled="!editFolderName.trim()">Сохранить</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Модальное окно перемещения папки -->
-    <div v-if="showMoveFolderModal" class="modal-overlay" @click="closeMoveFolderModal">
-      <div class="modal modal--move-folder" @click.stop>
-        <div class="modal-header">
-          <h3>Переместить папку "{{ folderToMove?.name }}"</h3>
-          <button class="modal-close" @click="closeMoveFolderModal">×</button>
-        </div>
-        <div class="modal-body">
-          <p class="modal-description">Выберите папку назначения:</p>
-          <div class="folder-list">
-            <div class="folder-item folder-item--root" @click="handleMoveFolderToFolder({ id: 'root', name: 'Корневая папка', path: '' })">
-              <div class="folder-icon folder-icon--root">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </div>
-              <span>Корневая папка</span>
-            </div>
-            <div v-for="folder in folders.filter(f => f.id !== folderToMove?.id)" :key="folder.id" class="folder-item" @click="handleMoveFolderToFolder(folder)">
-              <div class="folder-icon" :style="{ backgroundColor: getFolderBgColor(getFolderColor(folder.id)) }">
-                <div class="folder-color-circle" :style="{ backgroundColor: getFolderColor(folder.id) }"></div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </div>
-              <span>{{ folder.name }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="isOpeningFile" class="global-loading-overlay">
-      <div class="global-loading-spinner"></div>
-      <div class="global-loading-text">Загрузка таблицы...</div>
     </div>
   </div>
 </template>
@@ -490,24 +493,23 @@ import LuckyExcel from 'luckyexcel'
 import DropboxAuth from './DropboxAuth.vue'
 import { dropboxStorage } from '../utils/dropboxStorage.js'
 import { useAuth } from '../composables/useAuth.js'
+import { useDropbox } from '../composables/useDropbox.js'
+import { initializeDropboxIfNeeded } from '../composables/useDropboxInit.js'
+
+console.log('FileManager setup запущен');
 
 const { user, isAdmin, logout } = useAuth()
+const emit = defineEmits(['openFile', 'logout', 'goToAdmin'])
 
-const emit = defineEmits(['openFile'])
-
-const files = ref([])
-const folders = ref([
-  { id: 'root', name: 'Мои файлы', path: '' },
-  // Пример: { id: 'work', name: 'Работа', path: '/work' }
-])
+const { isDropboxAuthenticated, folders, files, loadDropboxFolders, loadDropboxFiles, loadDropboxData } = useDropbox()
+console.log('DIAG INIT:', isDropboxAuthenticated, folders, files);
 const currentFolder = ref('root')
 const isDragOver = ref(false)
 const showSettings = ref(false)
 const activeStorage = ref('dropbox')
 const storageType = ref('local')
-const isDropboxAuthenticated = ref(false)
 const isLoadingFiles = ref(false)
-const showMoveModal = ref(false)
+const showMoveFileModal = ref(false)
 const fileToMove = ref(null)
 const searchQuery = ref('')
 const contextMenu = ref({
@@ -609,18 +611,6 @@ function buildFolderTree(folders) {
 
 const folderTree = computed(() => buildFolderTree(folders.value))
 
-function toggleFolderExpand(folderId) {
-  if (expandedFolders.value.includes(folderId)) {
-    expandedFolders.value = expandedFolders.value.filter(id => id !== folderId)
-  } else {
-    expandedFolders.value.push(folderId)
-  }
-}
-
-function isFolderExpanded(folderId) {
-  return expandedFolders.value.includes(folderId)
-}
-
 // Функция для генерации цвета папки на основе её ID
 const getFolderColor = (folderId) => {
   // Сначала проверяем, есть ли сохраненный цвет для этой папки
@@ -640,17 +630,24 @@ const saveFolderColor = (folderId, color) => {
   localStorage.setItem('folderColors', JSON.stringify(savedColors))
 }
 
-// Функция для подсчета файлов и папок в папке
+// Функция для подсчета файлов и папок в папке (актуализированная)
 const getItemCountInFolder = (folder) => {
-  const filesInFolder = files.value.filter(file => file.path.startsWith(folder.path + '/')).length
-  const foldersInFolder = folders.value.filter(f => 
-    f.id !== 'root' && 
-    f.path !== folder.path && 
-    f.path.startsWith(folder.path + '/') &&
-    f.path.split('/').length === folder.path.split('/').length + 1
-  ).length
-  return filesInFolder + foldersInFolder
-}
+  // Получаем все файлы и папки, которые лежат непосредственно в этой папке
+  const folderPath = folder.path;
+  // Файлы только первого уровня
+  const filesInFolder = files.value.filter(file => {
+    if (!file.path) return false;
+    const parentPath = file.path.substring(0, file.path.lastIndexOf('/'));
+    return parentPath === folderPath;
+  }).length;
+  // Папки только первого уровня
+  const foldersInFolder = folders.value.filter(f => {
+    if (f.id === 'root' || f.path === folderPath) return false;
+    const parentPath = f.path.substring(0, f.path.lastIndexOf('/'));
+    return parentPath === folderPath;
+  }).length;
+  return filesInFolder + foldersInFolder;
+};
 
 const handleFileUpload = (event) => processFiles(Array.from(event.target.files));
 const processFiles = (fileList) => {
@@ -698,14 +695,16 @@ const openFile = async (file) => {
   isOpeningFile.value = true
   try {
     if (file.type === 'new') {
-      emit('openFile', { name: file.name, data: null, isNew: true });
+      emit('openFile', { name: file.name, path: file.path || '', data: null, isNew: true });
     } else if (file.type === 'cloud') {
-      try {
-        const fileData = await loadFromDropbox(file.path)
-        emit('openFile', { name: file.name, data: fileData, isNew: false });
-      } catch (error) {
-        alert('Ошибка загрузки файла из Dropbox: ' + error.message)
+      if (!file.path) {
+        alert('Ошибка: у файла нет пути!');
+        console.error('Открытие файла: отсутствует file.path', file);
+        return;
       }
+      console.log('Открываем файл из Dropbox:', file);
+      const fileData = await loadFromDropbox(file.path)
+      emit('openFile', { name: file.name, path: file.path, data: fileData, isNew: false });
     } else if (file.file) {
       LuckyExcel.transformExcelToLucky(file.file, (exportJson) => {
         if (exportJson.sheets == null || exportJson.sheets.length === 0) {
@@ -713,12 +712,12 @@ const openFile = async (file) => {
           isOpeningFile.value = false
           return;
         }
-        emit('openFile', { name: file.name, data: exportJson, isNew: false });
+        emit('openFile', { name: file.name, path: file.path || '', data: exportJson, isNew: false });
       });
     } else if (file.savedData) {
        const fileData = JSON.parse(JSON.stringify(file));
        if (fileData.savedData && fileData.savedData.sheets) {
-         emit('openFile', { name: fileData.name, data: fileData.savedData, isNew: false });
+         emit('openFile', { name: fileData.name, path: fileData.path || '', data: fileData.savedData, isNew: false });
        }
     }
   } finally {
@@ -755,64 +754,57 @@ const deleteFile = async (file) => {
   }
 };
 const setCurrentFolder = (folderId) => {
-  currentFolder.value = folderId;
+  if (!folders.value.find(f => f.id === folderId)) {
+    currentFolder.value = 'root';
+  } else {
+    currentFolder.value = folderId;
+  }
   if (isDropboxAuthenticated.value && storageType.value === 'dropbox') {
-    loadDropboxFiles();
+    // Найти путь выбранной папки
+    const folder = folders.value.find(f => f.id === currentFolder.value);
+    const path = folder ? folder.path : '';
+    loadDropboxFiles(path); // Передаём путь!
   }
 };
 const filteredFiles = computed(() => {
-  const folder = folders.value.find(f => f.id === currentFolder.value)
-  if (!folder) return []
-  
-  let result
+  const allFiles = files.value;
+  const folder = folders.value.find(f => f.id === currentFolder.value) || folders.value[0];
+  let result;
+  if (!folder) {
+    console.log('[filteredFiles] Нет текущей папки, возвращаем []');
+    return [];
+  }
   if (folder.path === '') {
-    // root: только файлы в корне (без вложенных папок)
-    result = files.value.filter(file => {
-      // file.path начинается с '/' и не содержит второго '/'
-      return file.path && file.path.startsWith('/') && (file.path.match(/\//g) || []).length === 1
-    })
+    result = allFiles;
   } else {
-    // вложенная папка: все файлы внутри этой папки
-    result = files.value.filter(file => (file.path || '').startsWith(folder.path + '/'))
+    result = allFiles.filter(file => (file.path || '').startsWith(folder.path + '/'));
   }
-  
   if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase()
-    result = result.filter(f => f.name.toLowerCase().includes(q))
+    const q = searchQuery.value.trim().toLowerCase();
+    result = result.filter(f => f.name.toLowerCase().includes(q));
   }
-  
-  return result
+  console.log('[filteredFiles] folder:', folder, 'allFiles:', allFiles, 'result:', result);
+  return result;
 });
 const filteredFolders = computed(() => {
-  // Получаем текущую папку
-  const currentFolderObj = folders.value.find(f => f.id === currentFolder.value)
-  const currentPath = currentFolderObj ? currentFolderObj.path : ''
-  
-  // Фильтруем папки, которые находятся в текущей папке
-  let result = folders.value.filter(f => {
-    if (f.id === 'root') return false
-    
-    // Если мы в корневой папке, показываем только папки в корне
+  const allFolders = folders.value;
+  const currentFolderObj = allFolders.find(f => f.id === currentFolder.value) || allFolders[0];
+  const currentPath = currentFolderObj ? currentFolderObj.path : '';
+  let result = allFolders.filter(f => {
+    if (f.id === 'root') return false;
     if (currentFolder.value === 'root') {
-      return f.path.split('/').length === 2 // только папки в корне (например, /folder1)
+      return f.path.split('/').length === 2;
     }
-    
-    // Если мы в папке, показываем только подпапки этой папки
-    const folderPathParts = f.path.split('/')
-    const currentPathParts = currentPath.split('/')
-    
-    // Папка должна быть на один уровень глубже текущей папки
-    return folderPathParts.length === currentPathParts.length + 1 && 
-           f.path.startsWith(currentPath + '/')
-  })
-  
-  // Применяем поиск
+    const folderPathParts = f.path.split('/');
+    const currentPathParts = currentPath.split('/');
+    return folderPathParts.length === currentPathParts.length + 1 && f.path.startsWith(currentPath + '/');
+  });
   if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase()
-    result = result.filter(f => f.name.toLowerCase().includes(q))
+    const q = searchQuery.value.trim().toLowerCase();
+    result = result.filter(f => f.name.toLowerCase().includes(q));
   }
-  
-  return result
+  console.log('[filteredFolders] currentFolderObj:', currentFolderObj, 'allFolders:', allFolders, 'result:', result);
+  return result;
 });
 const formatDate = (date) => {
   try {
@@ -918,90 +910,16 @@ const handleDropboxAuthChanged = async (isAuthenticated) => {
   }
 }
 
-const loadDropboxFolders = async () => {
-  if (!isDropboxAuthenticated.value) return
-  try {
-    console.log('Loading Dropbox folders...');
-    const dropboxFolders = await dropboxStorage.getFolders('')
-    
-    console.log('Received folders:', dropboxFolders);
-    
-    folders.value = [
-      { id: 'root', name: 'Мои файлы', path: '' },
-      ...dropboxFolders.map(f => ({ id: f.id, name: f.name, path: f.path }))
-    ]
-    
-    console.log('Updated folders.value:', folders.value);
-  } catch (error) {
-    console.error('Ошибка загрузки папок Dropbox:', error)
-    // Для тестирования используем заглушки даже при ошибке
-    folders.value = [
-      { id: 'root', name: 'Мои файлы', path: '' },
-      { id: 'documents', name: 'Documents', path: '/documents' },
-      { id: 'work', name: 'Work', path: '/work' },
-      { id: 'personal', name: 'Personal', path: '/personal' }
-    ]
-    console.log('Using fallback folders:', folders.value);
-  }
-}
 
-const loadDropboxFiles = async () => {
-  if (!isDropboxAuthenticated.value) return
-  
-  isLoadingFiles.value = true
-  try {
-    console.log('Loading Dropbox files...');
-    const dropboxFiles = await dropboxStorage.getUserFiles()
-    
-    console.log('Received files:', dropboxFiles);
-    
-    const mappedFiles = dropboxFiles.map(f => ({
-      id: f.id,
-      name: f.name,
-      lastModified: new Date(f.updatedAt),
-      size: f.size,
-      isFavorite: false, // Логику избранного нужно будет реализовать
-      type: 'cloud',
-      path: f.path
-    }))
-    
-    // Полностью заменяем список файлов
-    files.value = mappedFiles
-    console.log('Updated files.value:', files.value);
-
-  } catch (error) {
-    console.error('Ошибка загрузки файлов из Dropbox:', error)
-    // Для тестирования используем заглушки
-    files.value = [
-      {
-        id: 'file1',
-        name: 'document1.xlsx',
-        lastModified: new Date('2024-01-15T10:30:00Z'),
-        size: 1024 * 1024,
-        isFavorite: false,
-        type: 'cloud',
-        path: '/documents/document1.xlsx'
-      },
-      {
-        id: 'file2',
-        name: 'document2.xlsx',
-        lastModified: new Date('2024-01-14T15:45:00Z'),
-        size: 2048 * 1024,
-        isFavorite: false,
-        type: 'cloud',
-        path: '/documents/document2.xlsx'
-      }
-    ]
-    console.log('Using fallback files:', files.value);
-  } finally {
-    isLoadingFiles.value = false
-  }
-}
 
 const loadFromDropbox = async (filePath) => {
   try {
+    if (!filePath) {
+      throw new Error('Путь к файлу не передан!');
+    }
+    console.log('loadFromDropbox: путь к файлу:', filePath);
     const result = await dropboxStorage.downloadFile(filePath)
-    return result.data
+    return result // Возвращаем весь объект, а не только result.data
   } catch (error) {
     console.error('Ошибка загрузки из Dropbox:', error)
     if (error.message.includes('повторная авторизация')) {
@@ -1143,53 +1061,35 @@ const deleteFolder = async (folderId) => {
 }
 
 const openMoveModal = (file) => {
-  fileToMove.value = file
-  showMoveModal.value = true
-}
+  console.log('[OPEN MOVE MODAL] file:', file);
+  fileToMove.value = file;
+  showMoveFileModal.value = true;
+  console.log('[OPEN MOVE MODAL] fileToMove:', fileToMove.value, 'showMoveFileModal:', showMoveFileModal.value);
+};
 const closeMoveModal = () => {
-  showMoveModal.value = false
+  showMoveFileModal.value = false
   fileToMove.value = null
 }
-const handleMoveToFolder = async (folder) => {
-  if (!fileToMove.value) return
-  
+const handleMoveToFolder = async (targetFolder) => {
+  console.log('[MOVE MODAL] Клик по папке для перемещения:', targetFolder, 'fileToMove:', fileToMove.value);
+  if (!fileToMove.value) return;
   try {
-    const file = fileToMove.value
-    const newPath = folder.path ? `${folder.path}/${file.name}` : `/${file.name}`
-    
-    // Проверяем, существует ли файл с таким именем в целевой папке
-    const existingFile = files.value.find(f => f.path === newPath)
-    if (existingFile) {
-      const action = confirm(`Файл "${file.name}" уже существует в папке "${folder.name}". Переименовать файл?`)
-      if (action) {
-        const newName = prompt('Введите новое имя файла:', file.name)
-        if (newName && newName !== file.name) {
-          const renamedPath = folder.path ? `${folder.path}/${newName}` : `/${newName}`
-          await dropboxStorage.moveFile(file.path, renamedPath)
-        } else {
-          closeMoveModal()
-          return
-        }
-      } else {
-        closeMoveModal()
-        return
-      }
-    } else {
-      await dropboxStorage.moveFile(file.path, newPath)
-    }
-    
-    await loadDropboxFiles()
-    closeMoveModal()
-    alert('Файл успешно перемещён!')
+    const fromPath = fileToMove.value.path;
+    let toPath = targetFolder.path;
+    if (toPath && !toPath.endsWith('/')) toPath += '/';
+    toPath += fileToMove.value.name;
+    await dropboxStorage.moveFile(fromPath, toPath);
+    // После перемещения обновляем список файлов для текущей папки
+    const folder = folders.value.find(f => f.id === currentFolder.value);
+    const path = folder ? folder.path : '';
+    await loadDropboxFiles(path);
+    // Закрываем модальное окно и сбрасываем fileToMove
+    showMoveFileModal.value = false;
+    fileToMove.value = null;
   } catch (error) {
-    console.error('Ошибка перемещения файла:', error)
-    if (error.status === 409) {
-      alert('Файл с таким именем уже существует в целевой папке. Попробуйте переименовать файл.')
-    } else {
-      alert('Ошибка перемещения файла: ' + error.message)
-    }
+    alert('Ошибка перемещения: ' + error.message);
   }
-}
+};
 
 const getBreadcrumbs = computed(() => {
   const crumbs = []
@@ -1246,15 +1146,52 @@ const handleFileDrop = async (event, targetFile) => {
   }
 };
 
+// Глобальная функция для закрытия всех модальных окон и меню
+function closeAllModals() {
+  hideContextMenu();
+  hideFolderContextMenu();
+  hideEmptySpaceContextMenu();
+  showCreateFolderModal.value = false;
+  showEditFolderModal.value = false;
+  showMoveFileModal.value = false;
+  showMoveFolderModal.value = false;
+  showSettings.value = false;
+}
+
+// Функция для открытия контекстного меню файла
 const showContextMenu = (event, file) => {
-  event.preventDefault()
+  event.preventDefault();
+  closeAllModals();
   contextMenu.value = {
     show: true,
     x: event.clientX,
     y: event.clientY,
     file: file
-  }
-}
+  };
+};
+
+// Функция для открытия контекстного меню папки
+const showFolderContextMenu = (event, folder) => {
+  event.preventDefault();
+  closeAllModals();
+  folderContextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY,
+    folder: folder
+  };
+};
+
+// Функция для открытия контекстного меню пустого места
+const showEmptySpaceContextMenu = (event) => {
+  event.preventDefault();
+  closeAllModals();
+  emptySpaceContextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY
+  };
+};
 
 const hideContextMenu = () => {
   contextMenu.value.show = false
@@ -1272,11 +1209,11 @@ const renameFile = async (file) => {
   try {
     const newPath = file.path.replace(file.name, newName)
     await dropboxStorage.moveFile(file.path, newPath)
-    
-    // Обновляем локальный список файлов
-    await loadDropboxFiles()
-    
-    // Также обновляем файл в локальном массиве
+    // После переименования сразу обновляем список файлов для текущей папки
+    const folder = folders.value.find(f => f.id === currentFolder.value)
+    const path = folder ? folder.path : ''
+    await loadDropboxFiles(path)
+    // Также обновляем файл в локальном массиве (опционально, если нужно мгновенное обновление)
     const fileIndex = files.value.findIndex(f => f.id === file.id)
     if (fileIndex !== -1) {
       files.value[fileIndex] = {
@@ -1285,7 +1222,6 @@ const renameFile = async (file) => {
         path: newPath
       }
     }
-    
     console.log('Файл переименован:', file.name, '→', newName)
   } catch (error) {
     console.error('Ошибка переименования файла:', error)
@@ -1294,36 +1230,35 @@ const renameFile = async (file) => {
 }
 
 const moveFile = (file) => {
-  hideContextMenu()
-  fileToMove.value = file
-  showMoveModal.value = true
-}
+  console.log('[CONTEXT MENU] moveFile вызван для:', file);
+  hideContextMenu();
+  openMoveModal(file);
+};
 
-onMounted(async () => {
-  // Временно отключаем Dropbox для отладки
-  isDropboxAuthenticated.value = false
-  storageType.value = 'local'
-  
-  // TODO: Восстановить Dropbox функциональность после настройки
-  // isDropboxAuthenticated.value = await dropboxStorage.initialize()
-  // if (isDropboxAuthenticated.value) {
-  //   storageType.value = 'dropbox'
-  //   await loadDropboxFolders()
-  //   await loadDropboxFiles()
-  //   await loadStorageInfo()
-  // }
-  
-  // Обработчик клика вне контекстного меню
+// Вместо onMounted используем watcher на user
+watch(user, (newUser) => {
+  console.log('Watcher user сработал:', newUser);
+  console.log('user.dropboxRefreshToken:', newUser?.dropboxRefreshToken);
+  if (newUser && newUser.dropboxRefreshToken) {
+    isDropboxAuthenticated.value = true;
+    storageType.value = 'dropbox';
+    // watcher на isDropboxAuthenticated вызовет загрузку данных
+  } else {
+    storageType.value = 'local';
+  }
+}, { immediate: true });
+
+// onMounted теперь не занимается инициализацией Dropbox
+onMounted(() => {
+  document.addEventListener('click', closeAllModals);
   document.addEventListener('click', () => {
     hideContextMenu()
     hideFolderContextMenu()
     hideEmptySpaceContextMenu()
   })
-  
+
   window.addEventListener('fileSaved', async (event) => {
     const { fileName, fileData } = event.detail;
-    
-    // Если подключен Dropbox, сохраняем туда
     if (isDropboxAuthenticated.value && storageType.value === 'dropbox') {
       try {
         await saveToDropbox(fileName, fileData.data);
@@ -1331,18 +1266,22 @@ onMounted(async () => {
       } catch (error) {
         console.error('Ошибка сохранения в Dropbox:', error);
         alert('Ошибка сохранения в Dropbox: ' + error.message);
-        // В случае ошибки сохраняем локально
         saveFileLocally(fileName, fileData);
       }
     } else {
-      // Сохраняем локально
       saveFileLocally(fileName, fileData);
     }
   })
+
+  // Новый правильный вызов загрузки данных через useDropbox
+  if (isDropboxAuthenticated.value) {
+    loadDropboxData();
+  }
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', hideContextMenu)
+  document.removeEventListener('click', closeAllModals);
 })
 
 watch(files, (newFiles) => {
@@ -1472,15 +1411,6 @@ const getFolderHoverBgColor = (color) => {
 
 const hoveredFolderId = ref(null);
 
-const showFolderContextMenu = (event, folder) => {
-  event.preventDefault()
-  folderContextMenu.value = {
-    show: true,
-    x: event.clientX,
-    y: event.clientY,
-    folder: folder
-  }
-}
 
 const hideFolderContextMenu = () => {
   folderContextMenu.value.show = false
@@ -1737,21 +1667,93 @@ const getTextColorForBackground = (backgroundColor) => {
   return brightness > 128 ? '#000000' : '#ffffff'
 }
 
-const showEmptySpaceContextMenu = (event) => {
-  event.preventDefault()
-  emptySpaceContextMenu.value = {
-    show: true,
-    x: event.clientX,
-    y: event.clientY
-  }
-}
-
 const createFolderFromContext = () => {
   hideEmptySpaceContextMenu()
   showCreateFolderModal.value = true
   newFolderName.value = ''
   selectedFolderColor.value = '#FEF3C7' // бледно-желтый цвет по умолчанию
 }
+
+const handleLogout = async () => {
+  await logout()
+  emit('logout')
+}
+
+const handleGoToAdmin = () => {
+  console.log('Кнопка админ-панели нажата')
+  emit('goToAdmin')
+}
+
+// Добавляем watcher для автоматической загрузки данных Dropbox после авторизации
+watch(isDropboxAuthenticated, async (newVal) => {
+  console.log('Watcher isDropboxAuthenticated сработал:', newVal);
+  console.log('folders до loadDropboxData:', folders.value);
+  console.log('files до loadDropboxData:', files.value);
+  if (newVal) {
+    await loadDropboxData();
+    console.log('loadDropboxData вызван из watcher');
+    console.log('folders после loadDropboxData:', folders.value);
+    console.log('files после loadDropboxData:', files.value);
+  }
+});
+
+watch(folders, (val) => {
+  console.log('folders changed:', val)
+})
+
+watch([isDropboxAuthenticated, folders, files], ([auth, flds, fls]) => {
+  console.log('DIAG: isDropboxAuthenticated:', auth, 'folders:', flds, 'files:', fls);
+});
+
+// Кэш для количества файлов и папок в каждой папке
+const countsByFolderId = ref({});
+const loadingCounts = ref({});
+
+async function fetchItemCountForFolder(folder) {
+  if (countsByFolderId.value[folder.id] !== undefined || loadingCounts.value[folder.id]) return;
+  loadingCounts.value[folder.id] = true;
+  try {
+    const userToken = localStorage.getItem('user_token');
+    // Получаем папки внутри
+    const respFolders = await fetch(`/.netlify/functions/dropbox-folders?path=${encodeURIComponent(folder.path)}`, {
+      headers: { 'Authorization': `Bearer ${userToken}` }
+    });
+    const folders = await respFolders.json();
+    // Получаем файлы внутри
+    const respFiles = await fetch(`/.netlify/functions/dropbox?path=${encodeURIComponent(folder.path)}`, {
+      headers: { 'Authorization': `Bearer ${userToken}` }
+    });
+    const files = await respFiles.json();
+    countsByFolderId.value[folder.id] = folders.length + files.length;
+  } catch (e) {
+    countsByFolderId.value[folder.id] = 0;
+  } finally {
+    loadingCounts.value[folder.id] = false;
+  }
+}
+
+watch([isDropboxAuthenticated, folders], ([auth, flds]) => {
+  if (auth && Array.isArray(flds) && flds.length > 0) {
+    // Для каждой папки сразу подгружаем количество файлов и папок
+    flds.forEach(folder => {
+      fetchItemCountForFolder(folder);
+    });
+  }
+});
+
+// Watchers для диагностики
+watch(filteredFiles, (val) => {
+  console.log('[WATCH filteredFiles] Новое значение:', val);
+});
+watch(filteredFolders, (val) => {
+  console.log('[WATCH filteredFolders] Новое значение:', val);
+});
+
+// В <script setup> добавить для диагностики:
+window._showMoveFileModal = showMoveFileModal;
+setInterval(() => {
+  console.log('GLOBAL showMoveFileModal:', window._showMoveFileModal.value);
+}, 2000);
 </script>
 
 <style scoped>
@@ -3364,5 +3366,11 @@ const createFolderFromContext = () => {
 .settings-btn svg {
   width: 18px;
   height: 18px;
+}
+
+/* ... существующие стили ... */
+.modal-overlay[style*="display: block"] {
+  outline: 4px solid red !important;
+  z-index: 99999 !important;
 }
 </style> 

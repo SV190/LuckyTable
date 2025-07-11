@@ -1,0 +1,1211 @@
+<script setup>
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import LuckyExcel from 'luckyexcel'
+import DropboxAuth from './DropboxAuth.vue'
+import { dropboxStorage } from '../utils/dropboxStorage.js'
+import { useAuth } from '../composables/useAuth.js'
+import { useDropbox } from '../composables/useDropbox.js'
+
+const { user, isAdmin, logout } = useAuth()
+const emit = defineEmits(['openFile', 'logout', 'goToAdmin'])
+
+
+const currentFolder = ref('root')
+const isDragOver = ref(false)
+const showSettings = ref(false)
+const activeStorage = ref('dropbox')
+const storageType = ref('local')
+const isLoadingFiles = ref(false)
+const showMoveModal = ref(false)
+const fileToMove = ref(null)
+const searchQuery = ref('')
+const contextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  file: null
+})
+const storageInfo = ref(null)
+
+// Состояние для контекстного меню папок
+const folderContextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  folder: null
+})
+
+// Состояние для контекстного меню пустого места
+const emptySpaceContextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0
+})
+
+// Состояние для модального окна создания папки
+const showCreateFolderModal = ref(false)
+const newFolderName = ref('')
+const selectedFolderColor = ref('#3B82F6')
+
+// Состояние для модального окна редактирования папки
+const showEditFolderModal = ref(false)
+const editingFolder = ref(null)
+const editFolderName = ref('')
+const editFolderColor = ref('#FEF3C7')
+
+// Состояние для модального окна перемещения папки
+const showMoveFolderModal = ref(false)
+const folderToMove = ref(null)
+
+// Состояние для раскрытых папок
+const expandedFolders = ref(['root'])
+
+const folderTitle = computed(() => {
+    if (currentFolder.value === 'all') return 'Все файлы'
+    if (currentFolder.value === 'recent') return 'Недавние'
+    if (currentFolder.value === 'favorites') return 'Избранное'
+    return 'Файлы'
+})
+
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+
+// Построение дерева папок
+function buildFolderTree(folders) {
+  const map = {}
+  const roots = []
+  
+  // Сначала создаем все узлы
+  folders.forEach(folder => {
+    map[folder.id] = { ...folder, children: [] }
+  })
+  
+  // Затем строим связи
+  folders.forEach(folder => {
+    if (folder.id === 'root') {
+      // root - корневая папка
+      return
+    }
+    
+    if (folder.path && folder.path.includes('/')) {
+      // вложенная папка
+      const pathParts = folder.path.split('/').filter(p => p)
+      if (pathParts.length > 1) {
+        // есть родительская папка
+        const parentPath = '/' + pathParts.slice(0, -1).join('/')
+        const parent = folders.find(f => f.path === parentPath)
+        if (parent) {
+          map[parent.id].children.push(map[folder.id])
+        } else {
+          roots.push(map[folder.id])
+        }
+      } else {
+        // папка в корне
+        roots.push(map[folder.id])
+      }
+    } else {
+      // папка в корне
+      roots.push(map[folder.id])
+    }
+  })
+  
+  // root всегда первый, с детьми
+  if (map['root']) {
+    map['root'].children = roots
+    return [map['root']]
+  }
+  return roots
+}
+
+const folderTree = computed(() => buildFolderTree(folders.value))
+
+function toggleFolderExpand(folderId) {
+  if (expandedFolders.value.includes(folderId)) {
+    expandedFolders.value = expandedFolders.value.filter(id => id !== folderId)
+  } else {
+    expandedFolders.value.push(folderId)
+  }
+}
+
+function isFolderExpanded(folderId) {
+  return expandedFolders.value.includes(folderId)
+}
+
+// Функция для генерации цвета папки на основе её ID
+const getFolderColor = (folderId) => {
+  // Сначала проверяем, есть ли сохраненный цвет для этой папки
+  const savedColors = JSON.parse(localStorage.getItem('folderColors') || '{}')
+  if (savedColors[folderId]) {
+    return savedColors[folderId]
+  }
+  
+  // Если нет сохраненного цвета, возвращаем стандартный цвет
+  return '#FEF3C7' // бледно-желтый цвет, ассоциирующийся с папкой
+}
+
+// Функция для сохранения цвета папки
+const saveFolderColor = (folderId, color) => {
+  const savedColors = JSON.parse(localStorage.getItem('folderColors') || '{}')
+  savedColors[folderId] = color
+  localStorage.setItem('folderColors', JSON.stringify(savedColors))
+}
+
+// Функция для подсчета файлов и папок в папке
+const getItemCountInFolder = (folder) => {
+  const filesInFolder = files.value.filter(file => file.path.startsWith(folder.path + '/')).length
+  const foldersInFolder = folders.value.filter(f => 
+    f.id !== 'root' && 
+    f.path !== folder.path && 
+    f.path.startsWith(folder.path + '/') &&
+    f.path.split('/').length === folder.path.split('/').length + 1
+  ).length
+  return filesInFolder + foldersInFolder
+}
+
+const handleFileUpload = (event) => processFiles(Array.from(event.target.files));
+const processFiles = (fileList) => {
+    fileList.forEach(file => {
+        if ((file.type.includes('spreadsheet') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) && (file instanceof File || file.constructor.name === 'File')) {
+            
+            // Если Dropbox подключен, конвертируем и загружаем
+            if (isDropboxAuthenticated.value && storageType.value === 'dropbox') {
+                LuckyExcel.transformExcelToLucky(file, async (exportJson, msg) => {
+                    if (exportJson.sheets == null || exportJson.sheets.length === 0) {
+                        alert('Не удалось прочитать файл: ' + msg);
+                        return;
+                    }
+
+                    // Сохраняем в Dropbox с расширением .xlsx
+                    const xlsxFileName = file.name.endsWith('.xlsx') ? file.name : `${file.name.replace(/\.(xls)$/, '')}.xlsx`;
+
+                    try {
+                        await saveToDropbox(xlsxFileName, exportJson);
+                        alert(`Файл "${file.name}" успешно загружен в Dropbox.`);
+                    } catch (error) {
+                        alert(`Ошибка загрузки файла "${file.name}" в Dropbox.`);
+                        console.error(error);
+                    }
+                });
+            } else {
+                // Иначе просто добавляем в локальный список для открытия
+                const newFile = { id: generateId(), name: file.name, size: file.size, lastModified: new Date(), isFavorite: false, file, type: 'excel' };
+                files.value.unshift(newFile);
+            }
+        }
+    });
+};
+
+const handleDragEnter = () => isDragOver.value = true;
+const handleDragLeave = () => isDragOver.value = false;
+const handleFileUploadDrop = (e) => {
+    isDragOver.value = false;
+    processFiles(Array.from(e.dataTransfer.files));
+};
+const triggerFileUpload = () => document.getElementById('fileUpload').click();
+const isOpeningFile = ref(false)
+
+const openFile = async (file) => {
+  isOpeningFile.value = true
+  try {
+    if (file.type === 'new') {
+      emit('openFile', { name: file.name, path: file.path || '', data: null, isNew: true });
+    } else if (file.type === 'cloud') {
+      if (!file.path) {
+        alert('Ошибка: у файла нет пути!');
+        console.error('Открытие файла: отсутствует file.path', file);
+        return;
+      }
+      console.log('Открываем файл из Dropbox:', file);
+      const fileData = await loadFromDropbox(file.path)
+      emit('openFile', { name: file.name, path: file.path, data: fileData, isNew: false });
+    } else if (file.file) {
+      LuckyExcel.transformExcelToLucky(file.file, (exportJson) => {
+        if (exportJson.sheets == null || exportJson.sheets.length === 0) {
+          alert('Не удалось прочитать файл');
+          isOpeningFile.value = false
+          return;
+        }
+        emit('openFile', { name: file.name, path: file.path || '', data: exportJson, isNew: false });
+      });
+    } else if (file.savedData) {
+       const fileData = JSON.parse(JSON.stringify(file));
+       if (fileData.savedData && fileData.savedData.sheets) {
+         emit('openFile', { name: fileData.name, path: fileData.path || '', data: fileData.savedData, isNew: false });
+       }
+    }
+  } finally {
+    isOpeningFile.value = false
+  }
+};
+const toggleFavorite = (file) => file.isFavorite = !file.isFavorite;
+const deleteFile = async (file) => {
+  if (confirm(`Удалить "${file.name}"?`)) {
+    try {
+      if (file.type === 'cloud') {
+        await deleteFromDropbox(file.path)
+        
+        // Обновляем локальный список файлов
+        await loadDropboxFiles()
+        
+        // Также удаляем файл из локального массива
+        const fileIndex = files.value.findIndex(f => f.id === file.id)
+        if (fileIndex !== -1) {
+          files.value.splice(fileIndex, 1)
+        }
+      } else {
+        files.value = files.value.filter(f => f.id !== file.id);
+      }
+      
+      // Закрываем контекстное меню если оно открыто
+      hideContextMenu()
+      
+      console.log('Файл удален:', file.name)
+    } catch (error) {
+      console.error('Ошибка удаления файла:', error)
+      alert('Ошибка удаления файла: ' + error.message)
+    }
+  }
+};
+const setCurrentFolder = (folderId) => {
+  currentFolder.value = folderId;
+  if (isDropboxAuthenticated.value && storageType.value === 'dropbox') {
+    // Найти путь выбранной папки
+    const folder = folders.value.find(f => f.id === folderId);
+    const path = folder ? folder.path : '';
+    loadDropboxFiles(path); // Передаём путь!
+  }
+};
+const filteredFiles = computed(() => {
+  const folder = folders.value.find(f => f.id === currentFolder.value)
+  console.log('Текущая папка:', folder)
+  console.log('Все файлы:', files.value)
+  if (!folder) return []
+  let result
+  if (folder.path === '') {
+    // root: показываем все файлы
+    result = files.value
+  } else {
+    // вложенная папка: все файлы внутри этой папки
+    result = files.value.filter(file => (file.path || '').startsWith(folder.path + '/'))
+  }
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.trim().toLowerCase()
+    result = result.filter(f => f.name.toLowerCase().includes(q))
+  }
+  return result
+});
+const filteredFolders = computed(() => {
+  // Получаем текущую папку
+  const currentFolderObj = folders.value.find(f => f.id === currentFolder.value)
+  const currentPath = currentFolderObj ? currentFolderObj.path : ''
+  
+  // Фильтруем папки, которые находятся в текущей папке
+  let result = folders.value.filter(f => {
+    if (f.id === 'root') return false
+    
+    // Если мы в корневой папке, показываем только папки в корне
+    if (currentFolder.value === 'root') {
+      return f.path.split('/').length === 2 // только папки в корне (например, /folder1)
+    }
+    
+    // Если мы в папке, показываем только подпапки этой папки
+    const folderPathParts = f.path.split('/')
+    const currentPathParts = currentPath.split('/')
+    
+    // Папка должна быть на один уровень глубже текущей папки
+    return folderPathParts.length === currentPathParts.length + 1 && 
+           f.path.startsWith(currentPath + '/')
+  })
+  
+  // Применяем поиск
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.trim().toLowerCase()
+    result = result.filter(f => f.name.toLowerCase().includes(q))
+  }
+  
+  return result
+});
+const formatDate = (date) => {
+  try {
+    if (!date) return 'Неизвестно';
+    
+    // Проверяем, является ли date валидной датой
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      return 'Неизвестно';
+    }
+    
+    return new Intl.DateTimeFormat('ru-RU').format(dateObj);
+  } catch (error) {
+    console.error('Ошибка форматирования даты:', error, date);
+    return 'Неизвестно';
+  }
+};
+
+// Dropbox Storage handlers
+const initializeStorage = async () => {
+  try {
+    const isAuth = await dropboxStorage.initialize()
+    isDropboxAuthenticated.value = isAuth
+    if (isAuth) {
+      storageType.value = 'dropbox'
+      await loadDropboxFolders()
+    } else {
+      // Если Dropbox не авторизован, загружаем локальные файлы
+      loadFiles()
+    }
+  } catch (error) {
+    console.error('Ошибка инициализации Dropbox:', error)
+    // В случае ошибки загружаем локальные файлы
+    loadFiles()
+  }
+}
+
+const loadStorageInfo = async () => {
+  if (storageType.value === 'dropbox' && isDropboxAuthenticated.value) {
+    try {
+      console.log('Loading storage info...');
+      const userInfo = await dropboxStorage.getUserInfo()
+      console.log('Received user info:', userInfo);
+      
+      if (userInfo) {
+        const usedBytes = userInfo.spaceUsed
+        const totalBytes = userInfo.spaceTotal
+        
+        const formatSize = (bytes) => {
+          if (bytes >= 1024 * 1024 * 1024) {
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+          } else if (bytes >= 1024 * 1024) {
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+          } else if (bytes >= 1024) {
+            return (bytes / 1024).toFixed(1) + ' KB'
+          } else {
+            return bytes + ' B'
+          }
+        }
+        
+        const usedFormatted = formatSize(usedBytes)
+        const totalFormatted = formatSize(totalBytes)
+        const percentage = Math.round((usedBytes / totalBytes) * 100)
+        
+        storageInfo.value = {
+          usedGB: usedFormatted,
+          totalGB: totalFormatted,
+          percentage
+        }
+        console.log('Updated storage info:', storageInfo.value);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки информации о хранилище:', error)
+      // Для тестирования используем заглушку
+      storageInfo.value = {
+        usedGB: '100 MB',
+        totalGB: '2 GB',
+        percentage: 5
+      }
+      console.log('Using fallback storage info:', storageInfo.value);
+    }
+  }
+}
+
+const handleDropboxAuthChanged = async (isAuthenticated) => {
+  console.log('Dropbox auth changed:', isAuthenticated);
+  isDropboxAuthenticated.value = isAuthenticated
+  if (isAuthenticated) {
+    storageType.value = 'dropbox'
+    try {
+      await loadDropboxFolders()
+      await loadStorageInfo()
+      await loadDropboxFiles() // Добавляем загрузку файлов
+    } catch (error) {
+      console.error('Ошибка инициализации Dropbox:', error)
+      // Не выбрасываем ошибку, просто логируем
+      console.log('Continuing with fallback data');
+    }
+  } else {
+    storageType.value = 'local'
+    files.value = files.value.filter(f => f.type !== 'cloud')
+    storageInfo.value = null
+  }
+}
+
+
+
+const loadFromDropbox = async (filePath) => {
+  try {
+    if (!filePath) {
+      throw new Error('Путь к файлу не передан!');
+    }
+    console.log('loadFromDropbox: путь к файлу:', filePath);
+    const result = await dropboxStorage.downloadFile(filePath)
+    return result // Возвращаем весь объект, а не только result.data
+  } catch (error) {
+    console.error('Ошибка загрузки из Dropbox:', error)
+    if (error.message.includes('повторная авторизация')) {
+      alert('Сессия Dropbox истекла. Войдите в Dropbox снова.')
+      isDropboxAuthenticated.value = false
+      storageType.value = 'local'
+    }
+    throw error
+  }
+}
+
+const deleteFromDropbox = async (filePath) => {
+  try {
+    await dropboxStorage.deleteFile(filePath)
+    await loadDropboxFiles()
+  } catch (error) {
+    console.error('Ошибка удаления из Dropbox:', error)
+    if (error.message.includes('повторная авторизация')) {
+      alert('Сессия Dropbox истекла. Войдите в Dropbox снова.')
+      isDropboxAuthenticated.value = false
+      storageType.value = 'local'
+    }
+    throw error
+  }
+}
+
+// Функция для сохранения файла в Dropbox
+const saveToDropbox = async (fileName, fileData) => {
+  try {
+    const folder = folders.value.find(f => f.id === currentFolder.value)
+    const path = folder ? (folder.path ? `${folder.path}/${fileName}` : `/${fileName}`) : `/${fileName}`
+    await dropboxStorage.uploadFile(path, fileData)
+    await loadDropboxFiles() // Перезагружаем список файлов
+  } catch (error) {
+    console.error('Ошибка сохранения в Dropbox:', error)
+    if (error.message.includes('повторная авторизация')) {
+      alert('Сессия Dropbox истекла. Войдите в Dropbox снова.')
+      isDropboxAuthenticated.value = false
+      storageType.value = 'local'
+    }
+    throw error
+  }
+}
+
+// Обновляем существующие методы для работы с Dropbox
+const loadFiles = () => {
+  const savedFiles = localStorage.getItem('excelFiles');
+  if (savedFiles) {
+    try {
+      const parsedFiles = JSON.parse(savedFiles);
+      files.value = parsedFiles.map(file => {
+        let lastModified = new Date();
+        if (file.lastModified) {
+          const date = new Date(file.lastModified);
+          if (!isNaN(date.getTime())) {
+            lastModified = date;
+          }
+        }
+        
+        return { 
+          ...file, 
+          id: generateId(), 
+          type: 'saved',
+          lastModified: lastModified
+        };
+      });
+    } catch (error) {
+      console.error('Ошибка загрузки файлов из localStorage:', error);
+      files.value = [];
+    }
+  }
+}
+
+// Отладка модального окна
+const toggleSettings = () => showSettings.value = !showSettings.value;
+
+// Функция для очистки поврежденных данных
+const clearCorruptedData = () => {
+  if (confirm('Очистить все данные файлов? Это удалит все сохраненные файлы.')) {
+    localStorage.removeItem('excelFiles')
+    files.value = []
+    alert('Данные очищены')
+  }
+}
+
+const addFolder = () => {
+  showCreateFolderModal.value = true
+  newFolderName.value = ''
+  selectedFolderColor.value = '#FEF3C7' // бледно-желтый цвет по умолчанию
+}
+
+const closeCreateFolderModal = () => {
+  showCreateFolderModal.value = false
+  newFolderName.value = ''
+  selectedFolderColor.value = '#FEF3C7' // бледно-желтый цвет по умолчанию
+}
+
+const createFolder = async () => {
+  if (!newFolderName.value.trim()) {
+    alert('Введите название папки')
+    return
+  }
+  // Разрешаем любые буквы, убираем только запрещённые символы Dropbox
+  const safeName = newFolderName.value.trim().replace(/[\\/:?"<>|*]/g, '').replace(/\s+/g, '_')
+  let parentPath = ''
+  const current = folders.value.find(f => f.id === currentFolder.value)
+  if (current && current.path) {
+    parentPath = current.path
+  }
+  const path = parentPath ? `${parentPath}/${safeName}` : `/${safeName}`
+  try {
+    await dropboxStorage.createFolder(path)
+    await loadDropboxFolders()
+    // Сохраняем цвет для новой папки
+    const newFolder = folders.value.find(f => f.path === path)
+    if (newFolder) {
+      saveFolderColor(newFolder.id, selectedFolderColor.value)
+    }
+    closeCreateFolderModal()
+    alert('Папка успешно создана!')
+  } catch (e) {
+    alert('Ошибка создания папки: ' + e.message)
+  }
+}
+
+const deleteFolder = async (folderId) => {
+  if (folderId === 'root') return
+  const folder = folders.value.find(f => f.id === folderId)
+  if (!folder) return
+  if (!confirm('Удалить папку и все файлы в ней?')) return
+  try {
+    await dropboxStorage.deleteFolder(folder.path)
+    await loadDropboxFolders()
+    if (currentFolder.value === folderId) currentFolder.value = 'root'
+    await loadDropboxFiles()
+  } catch (e) {
+    alert('Ошибка удаления папки: ' + e.message)
+  }
+}
+
+const openMoveModal = (file) => {
+  fileToMove.value = file
+  showMoveModal.value = true
+}
+const closeMoveModal = () => {
+  showMoveModal.value = false
+  fileToMove.value = null
+}
+const handleMoveToFolder = async (folder) => {
+  if (!fileToMove.value) return
+  
+  try {
+    const file = fileToMove.value
+    const newPath = folder.path ? `${folder.path}/${file.name}` : `/${file.name}`
+    
+    // Проверяем, существует ли файл с таким именем в целевой папке
+    const existingFile = files.value.find(f => f.path === newPath)
+    if (existingFile) {
+      const action = confirm(`Файл "${file.name}" уже существует в папке "${folder.name}". Переименовать файл?`)
+      if (action) {
+        const newName = prompt('Введите новое имя файла:', file.name)
+        if (newName && newName !== file.name) {
+          const renamedPath = folder.path ? `${folder.path}/${newName}` : `/${newName}`
+          await dropboxStorage.moveFile(file.path, renamedPath)
+        } else {
+          closeMoveModal()
+          return
+        }
+      } else {
+        closeMoveModal()
+        return
+      }
+    } else {
+      await dropboxStorage.moveFile(file.path, newPath)
+    }
+    
+    await loadDropboxFiles()
+    closeMoveModal()
+    alert('Файл успешно перемещён!')
+  } catch (error) {
+    console.error('Ошибка перемещения файла:', error)
+    if (error.status === 409) {
+      alert('Файл с таким именем уже существует в целевой папке. Попробуйте переименовать файл.')
+    } else {
+      alert('Ошибка перемещения файла: ' + error.message)
+    }
+  }
+}
+
+const getBreadcrumbs = computed(() => {
+  const crumbs = []
+  let folder = folders.value.find(f => f.id === currentFolder.value)
+  while (folder) {
+    crumbs.unshift({ id: folder.id, name: folder.name })
+    if (!folder.path || folder.path === '') break
+    // ищем родителя по пути
+    const parentPath = folder.path.substring(0, folder.path.lastIndexOf('/'))
+    folder = folders.value.find(f => f.path === parentPath)
+    if (!folder && parentPath === '') {
+      folder = folders.value.find(f => f.id === 'root')
+    }
+  }
+  if (!crumbs.length || crumbs[0].id !== 'root') {
+    crumbs.unshift({ id: 'root', name: 'Мои файлы' })
+  }
+  return crumbs
+})
+const goToFolder = (id) => {
+  setCurrentFolder(id)
+}
+
+const handleDragStart = (event, file) => {
+  event.dataTransfer.setData('text/plain', JSON.stringify({
+    type: 'file',
+    id: file.id,
+    name: file.name,
+    path: file.path
+  }));
+  event.dataTransfer.effectAllowed = 'move';
+  console.log('Начато перетаскивание файла:', file.name);
+};
+
+const handleFileDrop = async (event, targetFile) => {
+  event.preventDefault();
+  const data = event.dataTransfer.getData('text/plain');
+  if (!data) return;
+  
+  try {
+    const draggedData = JSON.parse(data);
+    if (draggedData.type === 'file' && draggedData.id !== targetFile.id) {
+      // Перемещаем файл в ту же папку, где находится targetFile
+      const targetFolder = folders.value.find(f => f.id === currentFolder.value);
+      if (targetFolder && targetFolder.path !== '') {
+        const newPath = `${targetFolder.path}/${draggedData.name}`;
+        await dropboxStorage.moveFile(draggedData.path, newPath);
+        await loadDropboxFiles();
+        console.log('Файл перемещён:', draggedData.name);
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка перемещения файла:', error);
+  }
+};
+
+const showContextMenu = (event, file) => {
+  event.preventDefault()
+  contextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY,
+    file: file
+  }
+}
+
+const hideContextMenu = () => {
+  contextMenu.value.show = false
+}
+
+const hideEmptySpaceContextMenu = () => {
+  emptySpaceContextMenu.value.show = false
+}
+
+const renameFile = async (file) => {
+  hideContextMenu()
+  const newName = prompt('Введите новое имя файла:', file.name)
+  if (!newName || newName === file.name) return
+  
+  try {
+    const newPath = file.path.replace(file.name, newName)
+    await dropboxStorage.moveFile(file.path, newPath)
+    
+    // Обновляем локальный список файлов
+    await loadDropboxFiles()
+    
+    // Также обновляем файл в локальном массиве
+    const fileIndex = files.value.findIndex(f => f.id === file.id)
+    if (fileIndex !== -1) {
+      files.value[fileIndex] = {
+        ...files.value[fileIndex],
+        name: newName,
+        path: newPath
+      }
+    }
+    
+    console.log('Файл переименован:', file.name, '→', newName)
+  } catch (error) {
+    console.error('Ошибка переименования файла:', error)
+    alert('Ошибка переименования файла: ' + error.message)
+  }
+}
+
+const moveFile = (file) => {
+  hideContextMenu()
+  fileToMove.value = file
+  showMoveModal.value = true
+}
+
+onMounted(async () => {
+  // Автоматическая авторизация Dropbox, если у пользователя есть refreshToken
+  if (user.value && user.value.dropboxRefreshToken) {
+    isDropboxAuthenticated.value = true;
+    storageType.value = 'dropbox';
+    await loadDropboxFolders();
+    await loadDropboxFiles();
+    await loadStorageInfo();
+  } else {
+    storageType.value = 'local';
+  }
+
+  // Обработчик клика вне контекстного меню
+  document.addEventListener('click', () => {
+    hideContextMenu()
+    hideFolderContextMenu()
+    hideEmptySpaceContextMenu()
+  })
+
+  window.addEventListener('fileSaved', async (event) => {
+    const { fileName, fileData } = event.detail;
+    // Если подключен Dropbox, сохраняем туда
+    if (isDropboxAuthenticated.value && storageType.value === 'dropbox') {
+      try {
+        await saveToDropbox(fileName, fileData.data);
+        console.log('Файл сохранен в Dropbox:', fileName);
+      } catch (error) {
+        console.error('Ошибка сохранения в Dropbox:', error);
+        alert('Ошибка сохранения в Dropbox: ' + error.message);
+        // В случае ошибки сохраняем локально
+        saveFileLocally(fileName, fileData);
+      }
+    } else {
+      // Сохраняем локально
+      saveFileLocally(fileName, fileData);
+    }
+  })
+
+  if (isDropboxAuthenticated.value) {
+    loadDropboxFolders()
+    loadDropboxFiles()
+  }
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', hideContextMenu)
+})
+
+watch(files, (newFiles) => {
+    // Сохраняем только локальные файлы в localStorage
+    const localFiles = newFiles.filter(file => file.type !== 'cloud');
+    const toSave = localFiles.map(({ file, ...rest }) => rest);
+    localStorage.setItem('excelFiles', JSON.stringify(toSave));
+}, { deep: true });
+
+// Функция для сохранения папки
+const saveFolder = async () => {
+  if (!editFolderName.value.trim()) {
+    alert('Введите название папки')
+    return
+  }
+  
+  // Разрешаем любые буквы, убираем только запрещённые символы Dropbox
+  const safeName = editFolderName.value.trim().replace(/[\\/:?"<>|*]/g, '').replace(/\s+/g, '_')
+  const path = `/${safeName}`
+  
+  try {
+    await dropboxStorage.createFolder(path)
+    await loadDropboxFolders()
+    
+    // Сохраняем цвет для новой папки
+    const newFolder = folders.value.find(f => f.path === path)
+    if (newFolder) {
+      saveFolderColor(newFolder.id, editFolderColor.value)
+    }
+    
+    closeEditFolderModal()
+    alert('Папка успешно создана!')
+  } catch (e) {
+    alert('Ошибка создания папки: ' + e.message)
+  }
+}
+
+// Функция для открытия модального окна редактирования папки
+const openEditFolderModal = (folder) => {
+  editingFolder.value = folder
+  editFolderName.value = folder.name
+  editFolderColor.value = getFolderColor(folder.id) // получаем текущий цвет папки
+  showEditFolderModal.value = true
+}
+
+// Функция для закрытия модального окна редактирования папки
+const closeEditFolderModal = () => {
+  showEditFolderModal.value = false
+  editFolderName.value = ''
+  editFolderColor.value = '#FEF3C7' // бледно-желтый цвет по умолчанию
+}
+
+// Функция для получения бледного фона по основному цвету
+const getFolderBgColor = (color) => {
+  // Простая мапа для популярных цветов
+  const map = {
+    '#FEF3C7': '#FEF9E7', // бледно-желтый
+    '#F59E0B': '#FEF3C7', // ярко-желтый → бледно-желтый
+    '#3B82F6': '#E0F2FE', // синий → бледно-голубой
+    '#10B981': '#D1FAE5', // зеленый → бледно-зеленый
+    '#EF4444': '#FEE2E2', // красный → бледно-красный
+    '#8B5CF6': '#EDE9FE', // фиолетовый → бледно-фиолетовый
+    '#06B6D4': '#E0F2FE', // голубой → бледно-голубой
+    '#F97316': '#FFEDD5', // оранжевый → бледно-оранжевый
+    '#EC4899': '#FCE7F3', // розовый → бледно-розовый
+    '#84CC16': '#ECFCCB', // лаймовый → бледно-лаймовый
+    '#6366F1': '#E0E7FF', // индиго → бледно-индиго
+  };
+  return map[color] || color + '22'; // если нет в мапе, делаем прозрачность
+}
+
+// Функция для получения насыщенного цвета для контура папки
+const getFolderStrokeColor = (color) => {
+  const map = {
+    '#FEF3C7': '#F59E0B', // бледно-желтый → насыщенно-желтый
+    '#F59E0B': '#F59E0B',
+    '#3B82F6': '#3B82F6',
+    '#E0F2FE': '#3B82F6', // бледно-голубой → синий
+    '#10B981': '#10B981',
+    '#D1FAE5': '#10B981', // бледно-зеленый → зеленый
+    '#EF4444': '#EF4444',
+    '#FEE2E2': '#EF4444', // бледно-красный → красный
+    '#8B5CF6': '#8B5CF6',
+    '#EDE9FE': '#8B5CF6', // бледно-фиолетовый → фиолетовый
+    '#06B6D4': '#06B6D4',
+    '#F97316': '#F97316',
+    '#FFEDD5': '#F97316', // бледно-оранжевый → оранжевый
+    '#EC4899': '#EC4899',
+    '#FCE7F3': '#EC4899', // бледно-розовый → розовый
+    '#84CC16': '#84CC16',
+    '#ECFCCB': '#84CC16', // бледно-лаймовый → лаймовый
+    '#6366F1': '#6366F1',
+    '#E0E7FF': '#6366F1', // бледно-индиго → индиго
+    '#FEF9E7': '#F59E0B', // очень бледно-желтый → насыщенно-желтый
+  };
+  return map[color] || '#6366F1'; // по умолчанию индиго
+}
+
+// Функция для получения более насыщенного фона при наведении
+const getFolderHoverBgColor = (color) => {
+  const map = {
+    '#FEF3C7': '#FDE68A', // бледно-желтый → насыщеннее
+    '#F59E0B': '#F59E0B',
+    '#3B82F6': '#BAE6FD', // голубой → чуть насыщеннее
+    '#E0F2FE': '#BAE6FD',
+    '#10B981': '#6EE7B7', // зеленый → чуть насыщеннее
+    '#D1FAE5': '#6EE7B7',
+    '#EF4444': '#FCA5A5', // красный → чуть насыщеннее
+    '#FEE2E2': '#FCA5A5',
+    '#8B5CF6': '#C4B5FD', // фиолетовый → чуть насыщеннее
+    '#EDE9FE': '#C4B5FD',
+    '#06B6D4': '#7DD3FC', // голубой → чуть насыщеннее
+    '#F97316': '#FDBA74', // оранжевый → чуть насыщеннее
+    '#FFEDD5': '#FDBA74',
+    '#EC4899': '#F9A8D4', // розовый → чуть насыщеннее
+    '#FCE7F3': '#F9A8D4',
+    '#84CC16': '#D9F99D', // лаймовый → чуть насыщеннее
+    '#ECFCCB': '#D9F99D',
+    '#6366F1': '#A5B4FC', // индиго → чуть насыщеннее
+    '#E0E7FF': '#A5B4FC',
+    '#FEF9E7': '#FDE68A',
+  };
+  return map[color] || color;
+}
+
+// ...остальной код...
+
+const hoveredFolderId = ref(null);
+
+
+const showFolderContextMenu = (event, folder) => {
+  event.preventDefault()
+  folderContextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY,
+    folder: folder
+  }
+}
+
+const hideFolderContextMenu = () => {
+  folderContextMenu.value.show = false
+}
+
+const renameFolder = async (folder) => {
+  hideFolderContextMenu()
+  const newName = prompt('Введите новое имя папки:', folder.name)
+  if (!newName || newName === folder.name) return
+  
+  try {
+    // Разрешаем любые буквы, убираем только запрещённые символы Dropbox
+    const safeName = newName.trim().replace(/[\\/:?"<>|*]/g, '').replace(/\s+/g, '_')
+    const newPath = `/${safeName}`
+    
+    // Создаем новую папку с новым именем
+    await dropboxStorage.createFolder(newPath)
+    
+    // Перемещаем все файлы из старой папки в новую
+    const filesInFolder = files.value.filter(f => f.path.startsWith(folder.path + '/'))
+    for (const file of filesInFolder) {
+      const newFilePath = file.path.replace(folder.path, newPath)
+      await dropboxStorage.moveFile(file.path, newFilePath)
+    }
+    
+    // Удаляем старую папку
+    await dropboxStorage.deleteFolder(folder.path)
+    
+    // Обновляем списки
+    await loadDropboxFolders()
+    await loadDropboxFiles()
+    
+    console.log('Папка переименована:', folder.name, '→', newName)
+  } catch (error) {
+    console.error('Ошибка переименования папки:', error)
+    alert('Ошибка переименования папки: ' + error.message)
+  }
+}
+
+const moveFolder = (folder) => {
+  hideFolderContextMenu()
+  // Показываем модальное окно перемещения папки
+  openMoveFolderModal(folder)
+}
+
+const openMoveFolderModal = (folder) => {
+  folderToMove.value = folder
+  showMoveFolderModal.value = true
+}
+
+const closeMoveFolderModal = () => {
+  showMoveFolderModal.value = false
+  folderToMove.value = null
+}
+
+const handleMoveFolderToFolder = async (targetFolder) => {
+  if (!folderToMove.value) return
+  
+  try {
+    const folder = folderToMove.value
+    const oldFolderId = folder.id
+    const newPath = targetFolder.path ? `${targetFolder.path}/${folder.name}` : `/${folder.name}`
+    
+    // Создаем новую папку в целевой папке
+    await dropboxStorage.createFolder(newPath)
+    
+    // Перемещаем все файлы из старой папки в новую параллельно
+    const filesInFolder = files.value.filter(f => f.path.startsWith(folder.path + '/'))
+    const movePromises = filesInFolder.map(async (file) => {
+      const newFilePath = file.path.replace(folder.path, newPath)
+      return await dropboxStorage.moveFile(file.path, newFilePath)
+    })
+    
+    await Promise.all(movePromises)
+    
+    // Удаляем старую папку
+    await dropboxStorage.deleteFolder(folder.path)
+    
+    // Обновляем списки
+    await Promise.all([loadDropboxFolders(), loadDropboxFiles()])
+    
+    // Переносим цвет папки
+    const newFolder = folders.value.find(f => f.path === newPath)
+    if (newFolder) {
+      const savedColors = JSON.parse(localStorage.getItem('folderColors') || '{}')
+      if (savedColors[oldFolderId]) {
+        savedColors[newFolder.id] = savedColors[oldFolderId]
+        delete savedColors[oldFolderId]
+        localStorage.setItem('folderColors', JSON.stringify(savedColors))
+      }
+    }
+    
+    // Если мы находимся в перемещенной папке, переходим в корневую
+    if (currentFolder.value === folder.id) {
+      currentFolder.value = 'root'
+    }
+    
+    closeMoveFolderModal()
+    
+    alert('Папка успешно перемещена!')
+  } catch (error) {
+    console.error('Ошибка перемещения папки:', error)
+    alert('Ошибка перемещения папки: ' + error.message)
+  }
+}
+
+const deleteFolderFromContext = async (folder) => {
+  hideFolderContextMenu()
+  if (folder.id === 'root') return
+  
+  if (!confirm(`Удалить папку "${folder.name}" и все файлы в ней?`)) return
+  
+  try {
+    await dropboxStorage.deleteFolder(folder.path)
+    await loadDropboxFolders()
+    if (currentFolder.value === folder.id) currentFolder.value = 'root'
+    await loadDropboxFiles()
+    console.log('Папка удалена:', folder.name)
+  } catch (error) {
+    console.error('Ошибка удаления папки:', error)
+    alert('Ошибка удаления папки: ' + error.message)
+  }
+}
+
+const handleFolderDragStart = (event, folder) => {
+  event.dataTransfer.setData('text/plain', JSON.stringify({
+    type: 'folder',
+    id: folder.id,
+    name: folder.name,
+    path: folder.path
+  }))
+  event.dataTransfer.effectAllowed = 'move'
+}
+
+const handleFolderDrop = async (event, targetFolder) => {
+  event.preventDefault()
+  
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('text/plain'))
+    
+    if (data.type === 'folder') {
+      const sourceFolder = folders.value.find(f => f.id === data.id)
+      if (!sourceFolder || sourceFolder.id === targetFolder.id || sourceFolder.id === 'root') return
+      
+      // Проверяем, что не пытаемся переместить папку в саму себя или в её подпапку
+      if (targetFolder.path && targetFolder.path.startsWith(sourceFolder.path)) {
+        alert('Нельзя переместить папку в её подпапку')
+        return
+      }
+      
+      const oldFolderId = sourceFolder.id
+      const newPath = targetFolder.path ? `${targetFolder.path}/${sourceFolder.name}` : `/${sourceFolder.name}`
+      
+      // Создаем новую папку в целевой папке
+      await dropboxStorage.createFolder(newPath)
+      
+      // Перемещаем все файлы из старой папки в новую
+      const filesInFolder = files.value.filter(f => f.path.startsWith(sourceFolder.path + '/'))
+      for (const file of filesInFolder) {
+        const newFilePath = file.path.replace(sourceFolder.path, newPath)
+        await dropboxStorage.moveFile(file.path, newFilePath)
+      }
+      
+      // Удаляем старую папку
+      await dropboxStorage.deleteFolder(sourceFolder.path)
+      
+      // Обновляем списки
+      await loadDropboxFolders()
+      await loadDropboxFiles()
+      
+      // Переносим цвет папки
+      const newFolder = folders.value.find(f => f.path === newPath)
+      if (newFolder) {
+        const savedColors = JSON.parse(localStorage.getItem('folderColors') || '{}')
+        if (savedColors[oldFolderId]) {
+          savedColors[newFolder.id] = savedColors[oldFolderId]
+          delete savedColors[oldFolderId]
+          localStorage.setItem('folderColors', JSON.stringify(savedColors))
+        }
+      }
+      
+      // Если мы находимся в перемещенной папке, переходим в корневую
+      if (currentFolder.value === sourceFolder.id) {
+        currentFolder.value = 'root'
+      }
+      
+      console.log('Папка перемещена:', sourceFolder.name, '→', targetFolder.name)
+    }
+  } catch (error) {
+    console.error('Ошибка перемещения папки:', error)
+    alert('Ошибка перемещения папки: ' + error.message)
+  }
+}
+
+const handleRootDrop = async (event) => {
+  event.preventDefault()
+  
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('text/plain'))
+    
+    if (data.type === 'folder' && currentFolder.value === 'root') {
+      const sourceFolder = folders.value.find(f => f.id === data.id)
+      if (!sourceFolder || sourceFolder.id === 'root') return
+      
+      const oldFolderId = sourceFolder.id
+      const newPath = `/${sourceFolder.name}`
+      
+      // Создаем новую папку в корне
+      await dropboxStorage.createFolder(newPath)
+      
+      // Перемещаем все файлы из старой папки в новую
+      const filesInFolder = files.value.filter(f => f.path.startsWith(sourceFolder.path + '/'))
+      for (const file of filesInFolder) {
+        const newFilePath = file.path.replace(sourceFolder.path, newPath)
+        await dropboxStorage.moveFile(file.path, newFilePath)
+      }
+      
+      // Удаляем старую папку
+      await dropboxStorage.deleteFolder(sourceFolder.path)
+      
+      // Обновляем списки
+      await loadDropboxFolders()
+      await loadDropboxFiles()
+      
+      // Переносим цвет папки
+      const newFolder = folders.value.find(f => f.path === newPath)
+      if (newFolder) {
+        const savedColors = JSON.parse(localStorage.getItem('folderColors') || '{}')
+        if (savedColors[oldFolderId]) {
+          savedColors[newFolder.id] = savedColors[oldFolderId]
+          delete savedColors[oldFolderId]
+          localStorage.setItem('folderColors', JSON.stringify(savedColors))
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка перемещения папки в корень:', error)
+    alert('Ошибка перемещения папки: ' + error.message)
+  }
+}
+
+// Функция для определения цвета текста в зависимости от яркости фона
+const getTextColorForBackground = (backgroundColor) => {
+  // Конвертируем hex в RGB
+  const hex = backgroundColor.replace('#', '')
+  const r = parseInt(hex.substr(0, 2), 16)
+  const g = parseInt(hex.substr(2, 2), 16)
+  const b = parseInt(hex.substr(4, 2), 16)
+  
+  // Вычисляем яркость по формуле YIQ
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000
+  
+  // Если яркость больше 128, используем черный текст, иначе белый
+  return brightness > 128 ? '#000000' : '#ffffff'
+}
+
+const showEmptySpaceContextMenu = (event) => {
+  event.preventDefault()
+  emptySpaceContextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY
+  }
+}
+
+const createFolderFromContext = () => {
+  hideEmptySpaceContextMenu()
+  showCreateFolderModal.value = true
+  newFolderName.value = ''
+  selectedFolderColor.value = '#FEF3C7' // бледно-желтый цвет по умолчанию
+}
+
+const handleLogout = async () => {
+  await logout()
+  emit('logout')
+}
+
+const handleGoToAdmin = () => {
+  console.log('Кнопка админ-панели нажата')
+  emit('goToAdmin')
+}
+
+watch(isDropboxAuthenticated, (val) => {
+  if (val) {
+    loadDropboxFolders()
+    loadDropboxFiles()
+  }
+})
+</script>
