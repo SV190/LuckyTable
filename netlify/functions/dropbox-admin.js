@@ -1,8 +1,9 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 console.log('DROPBOX_APP_SECRET:', process.env.DROPBOX_APP_SECRET);
 const { Dropbox } = require('dropbox');
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
+const USERS_FILE = path.join(__dirname, 'users.json');
 
 console.log('dropbox-admin.js loaded');
 
@@ -52,40 +53,18 @@ async function validateRefreshToken(refreshToken, appKey, appSecret) {
   }
 }
 
-// Функция для получения refresh token пользователя из базы
-async function getUserRefreshToken(userId) {
-  const dbPath = path.join(__dirname, 'users.db');
-  const db = new sqlite3.Database(dbPath);
-  
-  return new Promise((resolve, reject) => {
-    db.get('SELECT dropboxRefreshToken FROM User WHERE id = ?', [userId], (err, row) => {
-      db.close();
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row ? row.dropboxRefreshToken : null);
-      }
-    });
-  });
+function readUsers() {
+  if (!fs.existsSync(USERS_FILE)) return [];
+  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
 }
 
 // Получение пользователя по user_token (заглушка для тестового токена)
 async function getUserFromToken(userToken) {
-  const dbPath = path.join(__dirname, 'users.db');
-  const db = new sqlite3.Database(dbPath);
-  return new Promise((resolve, reject) => {
-    if (userToken === 'test-token-123') {
-      // Возвращаем первого пользователя (id = 1)
-      db.get('SELECT * FROM User WHERE id = 1', [], (err, row) => {
-        db.close();
-        if (err) reject(err);
-        else resolve(row);
-      });
-    } else {
-      db.close();
-      resolve(null);
-    }
-  });
+  if (userToken === 'test-token-123') {
+    const users = readUsers();
+    return users[0] || null;
+  }
+  return null;
 }
 
 // Получение access token по refresh token (использует getAccessToken выше)
@@ -100,40 +79,7 @@ exports.handler = async function(event, context) {
   // --- GET: вернуть статус Dropbox для всех пользователей ---
   if (event.httpMethod === 'GET') {
     try {
-      const dbPath = path.join(__dirname, 'users.db');
-      console.log('DB path:', dbPath);
-      const db = new sqlite3.Database(dbPath);
-      // Проверяем существование таблицы users
-      const tableExists = await new Promise((resolve, reject) => {
-        db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", (err, row) => {
-          if (err) return reject(err);
-          resolve(!!row);
-        });
-      });
-      if (!tableExists) {
-        console.log('Table users does not exist, returning empty array');
-        db.close();
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ users: [] })
-        };
-      }
-      const users = [];
-      await new Promise((resolve, reject) => {
-        db.all('SELECT id, login, dropboxRefreshToken FROM User', (err, rows) => {
-          if (err) return reject(err);
-          rows.forEach(row => {
-            users.push({
-              id: row.id,
-              login: row.login,
-              dropboxConnected: !!row.dropboxRefreshToken
-            });
-          });
-          resolve();
-        });
-      });
-      db.close();
+      const users = readUsers();
       return {
         statusCode: 200,
         headers,
@@ -201,56 +147,20 @@ exports.handler = async function(event, context) {
     }
 
     // Сохраняем токен для выбранных пользователей
-    const dbPath = path.join(__dirname, 'users.db');
-    console.log('DB path:', dbPath);
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        console.error('Error opening DB:', err);
-      } else {
-        console.log('DB opened successfully');
+    const users = readUsers();
+    const updatedUsers = users.map(user => {
+      if (userIds.includes(user.id)) {
+        user.dropboxRefreshToken = refreshToken;
       }
+      return user;
     });
-    const updatePromises = userIds.map(userId => {
-      return new Promise((resolve, reject) => {
-        db.run(
-          'UPDATE User SET dropboxRefreshToken = ? WHERE id = ?',
-          [refreshToken, userId],
-          function(err) {
-            if (err) {
-              console.error('DB error:', err);
-              reject(err);
-            } else {
-              console.log(`Updated userId ${userId} with refreshToken`);
-              resolve();
-            }
-          }
-        );
-      });
-    });
-    try {
-      await Promise.all(updatePromises);
-      db.close((err) => {
-        if (err) {
-          console.error('Error closing DB:', err);
-        } else {
-          console.log('DB closed successfully');
-        }
-      });
-      console.log('All users updated successfully');
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ success: true, message: `Dropbox подключен для ${userIds.length} пользователей` })
-      };
-    } catch (dbError) {
-      db.close();
-      console.error('DB update error:', dbError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Ошибка сохранения токена', details: dbError.message })
-      };
-    }
+    fs.writeFileSync(USERS_FILE, JSON.stringify(updatedUsers, null, 2));
+    console.log('All users updated successfully');
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ success: true, message: `Dropbox подключен для ${userIds.length} пользователей` })
+    };
   } catch (error) {
     console.error('FATAL ERROR in dropbox-admin:', error);
     return {

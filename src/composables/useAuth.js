@@ -20,7 +20,8 @@ if (typeof window !== 'undefined') {
   const userInfo = localStorage.getItem('user_info');
   if (token && userInfo) {
     try {
-      user.value = JSON.parse(userInfo);
+      const parsedUser = JSON.parse(userInfo);
+      user.value = parsedUser;
       isAuthenticated.value = true;
     } catch (e) {
       user.value = null;
@@ -57,7 +58,7 @@ export function useAuth() {
     isLoading.value = true;
     error.value = null;
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch('/.netlify/functions/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login: loginValue, password })
@@ -75,29 +76,12 @@ export function useAuth() {
         isAuthenticated.value = false;
         throw new Error(error.value);
       } else {
-        // После успешного логина делаем запрос на /api/users?id=<userId>
-        const userId = data.user?.id;
-        let fullUser = data.user;
-        if (userId) {
-          try {
-            const userResp = await fetch(`/api/users?id=${userId}`, {
-              headers: { 'Authorization': `Bearer ${data.token}` }
-            });
-            if (userResp.ok) {
-              fullUser = await userResp.json();
-              console.log('Получен полный объект пользователя:', fullUser);
-            } else {
-              console.warn('Не удалось получить полный объект пользователя, используем базовый:', data.user);
-            }
-          } catch (e) {
-            console.warn('Ошибка получения полного пользователя:', e);
-          }
-        }
-        user.value = fullUser;
+        // Используем данные пользователя, полученные при входе
+        user.value = data.user;
         isAuthenticated.value = true;
         // Сохраняем токен и инфу о пользователе в localStorage
         localStorage.setItem('user_token', data.token);
-        localStorage.setItem('user_info', JSON.stringify(fullUser));
+        localStorage.setItem('user_info', JSON.stringify(data.user));
       }
     } catch (e) {
       error.value = e.message;

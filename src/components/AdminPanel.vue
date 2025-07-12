@@ -334,7 +334,7 @@ const fetchUsers = async () => {
   try {
     isLoading.value = true
     const token = getToken()
-    const response = await fetch('/api/users', {
+    const response = await fetch('/.netlify/functions/users', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -364,14 +364,14 @@ const createUser = async () => {
   isLoading.value = true
   try {
     const token = getToken()
-    const response = await fetch('/api/users', {
+    const response = await fetch('/.netlify/functions/users', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
-        login: newUser.value.login,
+        username: newUser.value.login,
         password: newUser.value.password,
         role: newUser.value.is_admin ? 'admin' : 'user'
       })
@@ -393,15 +393,15 @@ const toggleBlock = async (user) => {
   isLoading.value = true
   try {
     const token = getToken()
-    const response = await fetch('/api/users', {
-      method: 'PATCH',
+    const response = await fetch('/.netlify/functions/block-user', {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
-        id: user.id,
-        is_blocked: !user.is_blocked
+        userId: user.id,
+        isBlocked: !user.is_blocked
       })
     })
     const data = await response.json()

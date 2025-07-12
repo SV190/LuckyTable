@@ -496,13 +496,13 @@ import { useAuth } from '../composables/useAuth.js'
 import { useDropbox } from '../composables/useDropbox.js'
 import { initializeDropboxIfNeeded } from '../composables/useDropboxInit.js'
 
-console.log('FileManager setup запущен');
+
 
 const { user, isAdmin, logout } = useAuth()
 const emit = defineEmits(['openFile', 'logout', 'goToAdmin'])
 
 const { isDropboxAuthenticated, folders, files, loadDropboxFolders, loadDropboxFiles, loadDropboxData } = useDropbox()
-console.log('DIAG INIT:', isDropboxAuthenticated, folders, files);
+
 const currentFolder = ref('root')
 const isDragOver = ref(false)
 const showSettings = ref(false)
@@ -702,7 +702,6 @@ const openFile = async (file) => {
         console.error('Открытие файла: отсутствует file.path', file);
         return;
       }
-      console.log('Открываем файл из Dropbox:', file);
       const fileData = await loadFromDropbox(file.path)
       emit('openFile', { name: file.name, path: file.path, data: fileData, isNew: false });
     } else if (file.file) {
@@ -746,7 +745,6 @@ const deleteFile = async (file) => {
       // Закрываем контекстное меню если оно открыто
       hideContextMenu()
       
-      console.log('Файл удален:', file.name)
     } catch (error) {
       console.error('Ошибка удаления файла:', error)
       alert('Ошибка удаления файла: ' + error.message)
@@ -771,7 +769,6 @@ const filteredFiles = computed(() => {
   const folder = folders.value.find(f => f.id === currentFolder.value) || folders.value[0];
   let result;
   if (!folder) {
-    console.log('[filteredFiles] Нет текущей папки, возвращаем []');
     return [];
   }
   if (folder.path === '') {
@@ -783,8 +780,7 @@ const filteredFiles = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
     result = result.filter(f => f.name.toLowerCase().includes(q));
   }
-  console.log('[filteredFiles] folder:', folder, 'allFiles:', allFiles, 'result:', result);
-  return result;
+      return result;
 });
 const filteredFolders = computed(() => {
   const allFolders = folders.value;
@@ -803,8 +799,7 @@ const filteredFolders = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
     result = result.filter(f => f.name.toLowerCase().includes(q));
   }
-  console.log('[filteredFolders] currentFolderObj:', currentFolderObj, 'allFolders:', allFolders, 'result:', result);
-  return result;
+      return result;
 });
 const formatDate = (date) => {
   try {
@@ -845,9 +840,7 @@ const initializeStorage = async () => {
 const loadStorageInfo = async () => {
   if (storageType.value === 'dropbox' && isDropboxAuthenticated.value) {
     try {
-      console.log('Loading storage info...');
       const userInfo = await dropboxStorage.getUserInfo()
-      console.log('Received user info:', userInfo);
       
       if (userInfo) {
         const usedBytes = userInfo.spaceUsed
@@ -874,7 +867,6 @@ const loadStorageInfo = async () => {
           totalGB: totalFormatted,
           percentage
         }
-        console.log('Updated storage info:', storageInfo.value);
       }
     } catch (error) {
       console.error('Ошибка загрузки информации о хранилище:', error)
@@ -884,13 +876,11 @@ const loadStorageInfo = async () => {
         totalGB: '2 GB',
         percentage: 5
       }
-      console.log('Using fallback storage info:', storageInfo.value);
     }
   }
 }
 
 const handleDropboxAuthChanged = async (isAuthenticated) => {
-  console.log('Dropbox auth changed:', isAuthenticated);
   isDropboxAuthenticated.value = isAuthenticated
   if (isAuthenticated) {
     storageType.value = 'dropbox'
@@ -901,7 +891,6 @@ const handleDropboxAuthChanged = async (isAuthenticated) => {
     } catch (error) {
       console.error('Ошибка инициализации Dropbox:', error)
       // Не выбрасываем ошибку, просто логируем
-      console.log('Continuing with fallback data');
     }
   } else {
     storageType.value = 'local'
@@ -917,7 +906,6 @@ const loadFromDropbox = async (filePath) => {
     if (!filePath) {
       throw new Error('Путь к файлу не передан!');
     }
-    console.log('loadFromDropbox: путь к файлу:', filePath);
     const result = await dropboxStorage.downloadFile(filePath)
     return result // Возвращаем весь объект, а не только result.data
   } catch (error) {
@@ -1061,17 +1049,14 @@ const deleteFolder = async (folderId) => {
 }
 
 const openMoveModal = (file) => {
-  console.log('[OPEN MOVE MODAL] file:', file);
   fileToMove.value = file;
   showMoveFileModal.value = true;
-  console.log('[OPEN MOVE MODAL] fileToMove:', fileToMove.value, 'showMoveFileModal:', showMoveFileModal.value);
 };
 const closeMoveModal = () => {
   showMoveFileModal.value = false
   fileToMove.value = null
 }
 const handleMoveToFolder = async (targetFolder) => {
-  console.log('[MOVE MODAL] Клик по папке для перемещения:', targetFolder, 'fileToMove:', fileToMove.value);
   if (!fileToMove.value) return;
   try {
     const fromPath = fileToMove.value.path;
@@ -1121,7 +1106,6 @@ const handleDragStart = (event, file) => {
     path: file.path
   }));
   event.dataTransfer.effectAllowed = 'move';
-  console.log('Начато перетаскивание файла:', file.name);
 };
 
 const handleFileDrop = async (event, targetFile) => {
@@ -1138,7 +1122,6 @@ const handleFileDrop = async (event, targetFile) => {
         const newPath = `${targetFolder.path}/${draggedData.name}`;
         await dropboxStorage.moveFile(draggedData.path, newPath);
         await loadDropboxFiles();
-        console.log('Файл перемещён:', draggedData.name);
       }
     }
   } catch (error) {
@@ -1222,7 +1205,6 @@ const renameFile = async (file) => {
         path: newPath
       }
     }
-    console.log('Файл переименован:', file.name, '→', newName)
   } catch (error) {
     console.error('Ошибка переименования файла:', error)
     alert('Ошибка переименования файла: ' + error.message)
@@ -1230,15 +1212,12 @@ const renameFile = async (file) => {
 }
 
 const moveFile = (file) => {
-  console.log('[CONTEXT MENU] moveFile вызван для:', file);
   hideContextMenu();
   openMoveModal(file);
 };
 
 // Вместо onMounted используем watcher на user
 watch(user, (newUser) => {
-  console.log('Watcher user сработал:', newUser);
-  console.log('user.dropboxRefreshToken:', newUser?.dropboxRefreshToken);
   if (newUser && newUser.dropboxRefreshToken) {
     isDropboxAuthenticated.value = true;
     storageType.value = 'dropbox';
@@ -1262,7 +1241,6 @@ onMounted(() => {
     if (isDropboxAuthenticated.value && storageType.value === 'dropbox') {
       try {
         await saveToDropbox(fileName, fileData.data);
-        console.log('Файл сохранен в Dropbox:', fileName);
       } catch (error) {
         console.error('Ошибка сохранения в Dropbox:', error);
         alert('Ошибка сохранения в Dropbox: ' + error.message);
@@ -1443,7 +1421,6 @@ const renameFolder = async (folder) => {
     await loadDropboxFolders()
     await loadDropboxFiles()
     
-    console.log('Папка переименована:', folder.name, '→', newName)
   } catch (error) {
     console.error('Ошибка переименования папки:', error)
     alert('Ошибка переименования папки: ' + error.message)
@@ -1528,7 +1505,6 @@ const deleteFolderFromContext = async (folder) => {
     await loadDropboxFolders()
     if (currentFolder.value === folder.id) currentFolder.value = 'root'
     await loadDropboxFiles()
-    console.log('Папка удалена:', folder.name)
   } catch (error) {
     console.error('Ошибка удаления папки:', error)
     alert('Ошибка удаления папки: ' + error.message)
@@ -1597,7 +1573,6 @@ const handleFolderDrop = async (event, targetFolder) => {
         currentFolder.value = 'root'
       }
       
-      console.log('Папка перемещена:', sourceFolder.name, '→', targetFolder.name)
     }
   } catch (error) {
     console.error('Ошибка перемещения папки:', error)
@@ -1680,30 +1655,22 @@ const handleLogout = async () => {
 }
 
 const handleGoToAdmin = () => {
-  console.log('Кнопка админ-панели нажата')
+  
   emit('goToAdmin')
 }
 
 // Добавляем watcher для автоматической загрузки данных Dropbox после авторизации
 watch(isDropboxAuthenticated, async (newVal) => {
-  console.log('Watcher isDropboxAuthenticated сработал:', newVal);
-  console.log('folders до loadDropboxData:', folders.value);
-  console.log('files до loadDropboxData:', files.value);
+
   if (newVal) {
     await loadDropboxData();
-    console.log('loadDropboxData вызван из watcher');
-    console.log('folders после loadDropboxData:', folders.value);
-    console.log('files после loadDropboxData:', files.value);
+ 
   }
 });
 
-watch(folders, (val) => {
-  console.log('folders changed:', val)
-})
 
-watch([isDropboxAuthenticated, folders, files], ([auth, flds, fls]) => {
-  console.log('DIAG: isDropboxAuthenticated:', auth, 'folders:', flds, 'files:', fls);
-});
+
+
 
 // Кэш для количества файлов и папок в каждой папке
 const countsByFolderId = ref({});
@@ -1741,19 +1708,7 @@ watch([isDropboxAuthenticated, folders], ([auth, flds]) => {
   }
 });
 
-// Watchers для диагностики
-watch(filteredFiles, (val) => {
-  console.log('[WATCH filteredFiles] Новое значение:', val);
-});
-watch(filteredFolders, (val) => {
-  console.log('[WATCH filteredFolders] Новое значение:', val);
-});
 
-// В <script setup> добавить для диагностики:
-window._showMoveFileModal = showMoveFileModal;
-setInterval(() => {
-  console.log('GLOBAL showMoveFileModal:', window._showMoveFileModal.value);
-}, 2000);
 </script>
 
 <style scoped>

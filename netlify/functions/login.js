@@ -1,95 +1,44 @@
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
+const USERS_FILE = path.join(__dirname, 'users.json');
 
-exports.handler = async function(event, context) {
-  // Настройка CORS
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
-  };
+function readUsers() {
+  if (!fs.existsSync(USERS_FILE)) return [];
+  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+}
 
-  // Preflight
-  if (event.httpMethod === 'OPTIONS') {
+exports.handler = async (event, context) => {
+  if (event.httpMethod !== 'POST') {
     return {
-      statusCode: 200,
-      headers,
-      body: ''
+      statusCode: 405,
+      body: JSON.stringify({ error: 'Method not allowed' }),
+      headers: { 'Content-Type': 'application/json' }
     };
   }
 
-  if (event.httpMethod === 'POST') {
-    try {
-      const body = JSON.parse(event.body || '{}');
-      const { login, password } = body;
-      if (!login || !password) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'Логин и пароль обязательны' })
-        };
-      }
-
-      const dbPath = path.join(__dirname, 'users.db');
-      const db = new sqlite3.Database(dbPath);
-
-      // Возвращаем промис для асинхронной работы
-      return await new Promise((resolve, reject) => {
-        db.get(
-          'SELECT * FROM User WHERE login = ? AND password = ?',
-          [login, password],
-          (err, user) => {
-            db.close();
-            if (err) {
-              resolve({
-                statusCode: 500,
-                headers,
-                body: JSON.stringify({ error: 'Ошибка базы данных' })
-              });
-            } else if (!user) {
-              resolve({
-                statusCode: 401,
-                headers,
-                body: JSON.stringify({ error: 'Неверный логин или пароль' })
-              });
-            } else if (user.is_blocked) {
-              resolve({
-                statusCode: 403,
-                headers,
-                body: JSON.stringify({ error: 'Пользователь заблокирован' })
-              });
-            } else {
-              resolve({
-                statusCode: 200,
-                headers,
-                body: JSON.stringify({
-                  token: 'test-token-123', // Здесь можно выдать реальный JWT
-                  user: {
-                    id: user.id,
-                    login: user.login,
-                    role: user.role,
-                    createdAt: user.createdAt
-                  }
-                })
-              });
-            }
-          }
-        );
-      });
-    } catch (error) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Ошибка сервера: ' + error.message })
-      };
-    }
+  const { login, password } = JSON.parse(event.body || '{}');
+  if (!login || !password) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'Login and password required' }),
+      headers: { 'Content-Type': 'application/json' }
+    };
   }
 
-  // Для других методов
+  const users = readUsers();
+  const user = users.find(u => u.username === login && u.password === password);
+  if (!user) {
+    return {
+      statusCode: 401,
+      body: JSON.stringify({ error: 'Invalid credentials' }),
+      headers: { 'Content-Type': 'application/json' }
+    };
+  }
+
+  // Возвращаем "токен" и пользователя (токен — просто строка для теста)
   return {
-    statusCode: 405,
-    headers,
-    body: JSON.stringify({ error: 'Метод не поддерживается' })
+    statusCode: 200,
+    body: JSON.stringify({ token: 'test-token-123', user }),
+    headers: { 'Content-Type': 'application/json' }
   };
 }; 

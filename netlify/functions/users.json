@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "password": "admin123",
+    "role": "admin",
+    "is_blocked": 0,
+    "dropboxRefreshToken": "UO8eXtxiO2YAAAAAAAAAAa5XT0Eazfa9j1GejD9YVY-0cgZkjFcOQkXpNdf76V3s"
+  },
+  {
+    "id": 2,
+    "username": "qqq",
+    "password": "qqq",
+    "role": "user",
+    "is_blocked": 0,
+    "dropboxRefreshToken": "UO8eXtxiO2YAAAAAAAAAAa5XT0Eazfa9j1GejD9YVY-0cgZkjFcOQkXpNdf76V3s",
+    "createdAt": "2025-07-12T12:06:27.153Z"
+  },
+  {
+    "id": 3,
+    "username": "aaa",
+    "password": "aaa",
+    "role": "user",
+    "is_blocked": 0,
+    "dropboxRefreshToken": "UO8eXtxiO2YAAAAAAAAAAa5XT0Eazfa9j1GejD9YVY-0cgZkjFcOQkXpNdf76V3s",
+    "createdAt": "2025-07-12T12:07:45.905Z"
+  }
+]

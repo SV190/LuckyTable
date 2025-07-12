@@ -1,5 +1,5 @@
 const { Dropbox } = require('dropbox');
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
 
 // Функция для получения access token через refresh token
@@ -25,21 +25,55 @@ async function getAccessToken(refreshToken) {
   return data.access_token;
 }
 
-// Функция для получения refresh token пользователя из базы
+// Функция для получения refresh token пользователя из JSON файла
 async function getUserRefreshToken(userId) {
-  const dbPath = path.join(__dirname, 'users.db');
-  const db = new sqlite3.Database(dbPath);
-  
-  return new Promise((resolve, reject) => {
-    db.get('SELECT dropboxRefreshToken FROM User WHERE id = ?', [userId], (err, row) => {
-      db.close();
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row ? row.dropboxRefreshToken : null);
-      }
-    });
-  });
+  try {
+    const usersPath = path.join(__dirname, 'users.json');
+    if (!fs.existsSync(usersPath)) {
+      console.log('users.json not found');
+      return null;
+    }
+    
+    const usersData = fs.readFileSync(usersPath, 'utf8');
+    const users = JSON.parse(usersData);
+    const user = users.find(u => u.id === userId);
+    
+    return user ? user.dropboxRefreshToken : null;
+  } catch (error) {
+    console.error('Error reading users.json:', error);
+    return null;
+  }
+}
+
+// Функция для сохранения refresh token в JSON файл
+async function saveUserRefreshToken(userId, refreshToken) {
+  try {
+    const usersPath = path.join(__dirname, 'users.json');
+    let users = [];
+    
+    if (fs.existsSync(usersPath)) {
+      const usersData = fs.readFileSync(usersPath, 'utf8');
+      users = JSON.parse(usersData);
+    }
+    
+    // Найти пользователя и обновить токен
+    const userIndex = users.findIndex(u => u.id === userId);
+    if (userIndex !== -1) {
+      users[userIndex].dropboxRefreshToken = refreshToken;
+    } else {
+      // Если пользователь не найден, создать нового
+      users.push({
+        id: userId,
+        dropboxRefreshToken: refreshToken
+      });
+    }
+    
+    fs.writeFileSync(usersPath, JSON.stringify(users, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error saving to users.json:', error);
+    return false;
+  }
 }
 
 exports.handler = async function(event, context) {
@@ -160,31 +194,21 @@ exports.handler = async function(event, context) {
         const refreshToken = data.refresh_token;
         
         // Сохраняем refresh token в базу
-        const dbPath = path.join(__dirname, 'users.db');
-        const db = new sqlite3.Database(dbPath);
+        const success = await saveUserRefreshToken(userId || 1, refreshToken);
         
-        return new Promise((resolve, reject) => {
-          db.run(
-            'UPDATE User SET dropboxRefreshToken = ? WHERE id = ?',
-            [refreshToken, userId || 1],
-            function(err) {
-              db.close();
-              if (err) {
-                resolve({
-                  statusCode: 500,
-                  headers,
-                  body: JSON.stringify({ error: 'Ошибка сохранения токена' })
-                });
-              } else {
-                resolve({
-                  statusCode: 200,
-                  headers,
-                  body: JSON.stringify({ success: true, message: 'Dropbox подключен' })
-                });
-              }
-            }
-          );
-        });
+        if (success) {
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ success: true, message: 'Dropbox подключен' })
+          };
+        } else {
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Ошибка сохранения токена' })
+          };
+        }
       } else {
         return {
           statusCode: 400,

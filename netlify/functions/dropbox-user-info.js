@@ -1,18 +1,25 @@
 const fetch = require('node-fetch');
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
 
-// Получить refresh token пользователя из базы (userId = 1)
+// Получить refresh token пользователя из JSON файла
 async function getUserRefreshToken(userId) {
-  const dbPath = path.join(__dirname, 'users.db');
-  const db = new sqlite3.Database(dbPath);
-  return new Promise((resolve, reject) => {
-    db.get('SELECT dropboxRefreshToken FROM User WHERE id = ?', [userId], (err, row) => {
-      db.close();
-      if (err) reject(err);
-      else resolve(row ? row.dropboxRefreshToken : null);
-    });
-  });
+  try {
+    const usersPath = path.join(__dirname, 'users.json');
+    if (!fs.existsSync(usersPath)) {
+      console.log('users.json not found');
+      return null;
+    }
+    
+    const usersData = fs.readFileSync(usersPath, 'utf8');
+    const users = JSON.parse(usersData);
+    const user = users.find(u => u.id === userId);
+    
+    return user ? user.dropboxRefreshToken : null;
+  } catch (error) {
+    console.error('Error reading users.json:', error);
+    return null;
+  }
 }
 
 // Обменять refresh token на access token
@@ -39,6 +46,28 @@ async function getAccessToken(refreshToken, clientId, clientSecret) {
 exports.handler = async (event) => {
   try {
     console.log('Received event:', JSON.stringify(event));
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    };
+
+    if (event.httpMethod === 'OPTIONS') {
+      return { statusCode: 200, headers, body: '' };
+    }
+
+    // Проверка токена авторизации
+    const token = event.headers.authorization?.split(' ')[1];
+    if (!token || token !== 'test-token-123') {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Неверный токен' })
+      };
+    }
+    
     // userId временно жёстко 1
     const userId = 1;
     const clientId = process.env.DROPBOX_CLIENT_ID;
@@ -46,6 +75,7 @@ exports.handler = async (event) => {
     if (!clientId || !clientSecret) {
       return {
         statusCode: 500,
+        headers,
         body: JSON.stringify({ error: 'Dropbox client_id/client_secret not set in env' })
       };
     }
@@ -53,6 +83,7 @@ exports.handler = async (event) => {
     if (!refreshToken) {
       return {
         statusCode: 401,
+        headers,
         body: JSON.stringify({ error: 'No Dropbox refresh token for user' })
       };
     }
@@ -77,6 +108,7 @@ exports.handler = async (event) => {
       console.error('Dropbox account error:', account);
       return {
         statusCode: accountRes.status,
+        headers,
         body: JSON.stringify({ error: 'Failed to get Dropbox account info', details: account })
       };
     }
@@ -99,12 +131,14 @@ exports.handler = async (event) => {
       console.error('Dropbox space error:', space);
       return {
         statusCode: spaceRes.status,
+        headers,
         body: JSON.stringify({ error: 'Failed to get Dropbox space info', details: space })
       };
     }
 
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({
         email: account.email,
         account_id: account.account_id,
@@ -116,6 +150,7 @@ exports.handler = async (event) => {
     console.error('Handler error:', error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ error: error.message, stack: error.stack })
     };
   }

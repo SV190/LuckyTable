@@ -1,5 +1,5 @@
 const { Dropbox } = require('dropbox');
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
 
@@ -20,15 +20,22 @@ async function getAccessToken(refreshToken) {
 }
 
 async function getUserRefreshToken(userId) {
-  const dbPath = path.join(__dirname, 'users.db');
-  const db = new sqlite3.Database(dbPath);
-  return new Promise((resolve, reject) => {
-    db.get('SELECT dropboxRefreshToken FROM User WHERE id = ?', [userId], (err, row) => {
-      db.close();
-      if (err) reject(err);
-      else resolve(row ? row.dropboxRefreshToken : null);
-    });
-  });
+  try {
+    const usersPath = path.join(__dirname, 'users.json');
+    if (!fs.existsSync(usersPath)) {
+      console.log('users.json not found');
+      return null;
+    }
+    
+    const usersData = fs.readFileSync(usersPath, 'utf8');
+    const users = JSON.parse(usersData);
+    const user = users.find(u => u.id === userId);
+    
+    return user ? user.dropboxRefreshToken : null;
+  } catch (error) {
+    console.error('Error reading users.json:', error);
+    return null;
+  }
 }
 
 exports.handler = async (event) => {
@@ -39,11 +46,32 @@ exports.handler = async (event) => {
     console.log('HEADERS:', JSON.stringify(event.headers));
     console.log('BODY RAW:', event.body);
 
+    const headers = {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    };
+
+    if (event.httpMethod === 'OPTIONS') {
+      return { statusCode: 200, headers, body: '' };
+    }
+
     if (event.httpMethod !== 'POST') {
       return {
         statusCode: 405,
-        headers: { 'Allow': 'POST', 'Access-Control-Allow-Origin': '*' },
-        body: 'Method Not Allowed',
+        headers,
+        body: JSON.stringify({ error: 'Method Not Allowed' }),
+      };
+    }
+
+    // Проверка токена авторизации
+    const token = event.headers.authorization?.split(' ')[1];
+    if (!token || token !== 'test-token-123') {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Неверный токен' }),
       };
     }
 
@@ -52,29 +80,24 @@ exports.handler = async (event) => {
     if (!filePath) {
       return {
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers,
         body: JSON.stringify({ error: 'No file path provided' }),
       };
     }
 
-    // Используем refreshToken, clientId и clientSecret для авторизации
-    const clientId = process.env.DROPBOX_CLIENT_ID;
-    const clientSecret = process.env.DROPBOX_CLIENT_SECRET;
-    const refreshToken = process.env.DROPBOX_REFRESH_TOKEN;
-    if (!clientId || !clientSecret || !refreshToken) {
+    // Получаем refresh token пользователя
+    const userId = 1; // В реальности извлекать из JWT токена
+    const refreshToken = await getUserRefreshToken(userId);
+    if (!refreshToken) {
       return {
-        statusCode: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({ error: 'Dropbox credentials are not configured' }),
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Dropbox не подключен' }),
       };
     }
 
-    const dbx = new Dropbox({
-      clientId,
-      clientSecret,
-      refreshToken,
-      fetch
-    });
+    const accessToken = await getAccessToken(refreshToken);
+    const dbx = new Dropbox({ accessToken, fetch });
 
     const file = await dbx.filesDownload({ path: filePath });
     const fileContents = file.result.fileBinary;
@@ -90,9 +113,8 @@ exports.handler = async (event) => {
       return {
         statusCode: 200,
         headers: {
-          'Content-Type': 'application/json',
+          ...headers,
           'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
-          'Access-Control-Allow-Origin': '*',
         },
         body: text,
       };
@@ -101,9 +123,9 @@ exports.handler = async (event) => {
       return {
         statusCode: 200,
         headers: {
+          ...headers,
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
-          'Access-Control-Allow-Origin': '*',
         },
         body: Buffer.from(fileContents).toString('base64'),
         isBase64Encoded: true,
@@ -113,7 +135,7 @@ exports.handler = async (event) => {
     console.error('dropbox-download error:', e);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers,
       body: JSON.stringify({ error: e.message }),
     };
   }

@@ -1,5 +1,5 @@
 const { Dropbox } = require('dropbox');
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
 
 async function getAccessToken(refreshToken) {
@@ -19,15 +19,22 @@ async function getAccessToken(refreshToken) {
 }
 
 async function getUserRefreshToken(userId) {
-  const dbPath = path.join(__dirname, 'users.db');
-  const db = new sqlite3.Database(dbPath);
-  return new Promise((resolve, reject) => {
-    db.get('SELECT dropboxRefreshToken FROM User WHERE id = ?', [userId], (err, row) => {
-      db.close();
-      if (err) reject(err);
-      else resolve(row ? row.dropboxRefreshToken : null);
-    });
-  });
+  try {
+    const usersPath = path.join(__dirname, 'users.json');
+    if (!fs.existsSync(usersPath)) {
+      console.log('users.json not found');
+      return null;
+    }
+    
+    const usersData = fs.readFileSync(usersPath, 'utf8');
+    const users = JSON.parse(usersData);
+    const user = users.find(u => u.id === userId);
+    
+    return user ? user.dropboxRefreshToken : null;
+  } catch (error) {
+    console.error('Error reading users.json:', error);
+    return null;
+  }
 }
 
 exports.handler = async function(event) {

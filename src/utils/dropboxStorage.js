@@ -233,7 +233,7 @@ export class DropboxStorageService {
   // Загрузка файла
   async downloadFile(filePath) {
     try {
-      const userToken = 'test-token-123';
+      const userToken = localStorage.getItem('user_token');
       const body = JSON.stringify({ path: filePath });
       const response = await fetch('/.netlify/functions/dropbox-download', {
         method: 'POST',
@@ -279,7 +279,7 @@ export class DropboxStorageService {
   // Загрузка файла на Dropbox
   async uploadFile(filePath, fileData) {
     try {
-      const userToken = 'test-token-123';
+      const userToken = localStorage.getItem('user_token');
       const body = JSON.stringify({ path: filePath, data: fileData });
       const response = await fetch('/.netlify/functions/dropbox-upload', {
         method: 'POST',

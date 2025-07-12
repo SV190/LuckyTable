@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { supabase } from '../utils/supabase';
 
-const users = ref([]);
+const usersList = ref([]);
 const loading = ref(false);
 const error = ref(null);
 
@@ -13,12 +13,12 @@ export function useUsers() {
     const { data, error: err } = await supabase.from('users').select('*').order('created_at', { ascending: false });
     if (err) {
       error.value = err.message;
-      users.value = [];
+      usersList.value = [];
     } else {
-      users.value = data;
+      usersList.value = data;
     }
     loading.value = false;
-    return users.value;
+    return usersList.value;
   };
 
   // Создать пользователя
@@ -55,7 +55,7 @@ export function useUsers() {
   };
 
   return {
-    users,
+    users: usersList,
     loading,
     error,
     fetchUsers,
