@@ -3418,6 +3418,8 @@ const contextMenu = ref({
   }
   
   .sidebar {
+    display: flex;
+    flex-direction: column;
     position: fixed;
     top: 0;
     left: -280px;
@@ -3427,16 +3429,29 @@ const contextMenu = ref({
     transition: left 0.3s ease;
     border-radius: 0;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-    /* Добавляем отступы снизу для мобильных браузеров */
-    padding-bottom: env(safe-area-inset-bottom, 20px);
     padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+    background: #fff;
   }
   
   .sidebar--mobile-open {
     left: 0;
-    /* Обеспечиваем прокрутку для мобильного меню */
+    overflow: hidden;
+  }
+  
+  .folder-tree {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    margin-bottom: 8px;
+  }
+  
+  .sidebar-footer {
+    flex: 0 0 auto;
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+    z-index: 2;
   }
   
   .main-content {
