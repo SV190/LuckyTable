@@ -1,6 +1,4 @@
 const { Dropbox } = require('dropbox');
-const fs = require('fs');
-const path = require('path');
 const fetch = require('node-fetch');
 
 const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN || '';
@@ -45,15 +43,22 @@ async function getUserRefreshToken(userId) {
   }
 }
 
-// Функция для сохранения refresh token в JSON файл
+// Функция для сохранения refresh token в Dropbox
 async function saveUserRefreshToken(userId, refreshToken) {
   try {
-    const usersPath = path.join(__dirname, 'users.json');
-    let users = [];
+    const dbx = await getDropbox();
     
-    if (fs.existsSync(usersPath)) {
-      const usersData = fs.readFileSync(usersPath, 'utf8');
-      users = JSON.parse(usersData);
+    // Читаем текущих пользователей
+    let users = [];
+    try {
+      const res = await dbx.filesDownload({ path: USERS_PATH });
+      const content = res.result.fileBinary.toString();
+      if (content.trim()) {
+        users = JSON.parse(content);
+      }
+    } catch (e) {
+      if (e.status !== 409) throw e;
+      // Файл не существует, создаем пустой массив
     }
     
     // Найти пользователя и обновить токен
@@ -68,10 +73,16 @@ async function saveUserRefreshToken(userId, refreshToken) {
       });
     }
     
-    fs.writeFileSync(usersPath, JSON.stringify(users, null, 2));
+    // Записываем обратно в Dropbox
+    await dbx.filesUpload({
+      path: USERS_PATH,
+      contents: Buffer.from(JSON.stringify(users, null, 2)),
+      mode: { '.tag': 'overwrite' }
+    });
+    
     return true;
   } catch (error) {
-    console.error('Error saving to users.json:', error);
+    console.error('Error saving to Dropbox:', error);
     return false;
   }
 }
