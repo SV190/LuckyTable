@@ -1,11 +1,15 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 console.log('DROPBOX_APP_SECRET:', process.env.DROPBOX_APP_SECRET);
 const { Dropbox } = require('dropbox');
-const fs = require('fs');
-const path = require('path');
-const USERS_FILE = path.join(__dirname, 'users.json');
+const fetch = require('node-fetch');
 
 console.log('dropbox-admin.js loaded');
+
+const DROPBOX_TOKEN = process.env.DROPBOX_TOKEN || '';
+const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN || '';
+const DROPBOX_CLIENT_ID = process.env.DROPBOX_CLIENT_ID || '';
+const DROPBOX_CLIENT_SECRET = process.env.DROPBOX_CLIENT_SECRET || '';
+const USERS_PATH = '/users.json';
 
 // Функция для получения access token через refresh token
 async function getAccessToken(refreshToken, appKey, appSecret) {
@@ -32,6 +36,35 @@ async function getAccessToken(refreshToken, appKey, appSecret) {
   return data.access_token;
 }
 
+// Функция для получения Dropbox клиента
+async function getDropbox() {
+  const accessToken = await getAccessToken(DROPBOX_REFRESH_TOKEN, DROPBOX_CLIENT_ID, DROPBOX_CLIENT_SECRET);
+  return new Dropbox({ accessToken, fetch });
+}
+
+// Функция для чтения пользователей из Dropbox
+async function readUsers() {
+  try {
+    const dbx = await getDropbox();
+    const res = await dbx.filesDownload({ path: USERS_PATH });
+    const content = res.result.fileBinary.toString();
+    return JSON.parse(content);
+  } catch (e) {
+    if (e.status === 409) return [];
+    throw e;
+  }
+}
+
+// Функция для записи пользователей в Dropbox
+async function writeUsers(users) {
+  const dbx = await getDropbox();
+  await dbx.filesUpload({
+    path: USERS_PATH,
+    contents: Buffer.from(JSON.stringify(users, null, 2)),
+    mode: { '.tag': 'overwrite' }
+  });
+}
+
 // Функция для проверки валидности refresh token
 async function validateRefreshToken(refreshToken, appKey, appSecret) {
   try {
@@ -53,38 +86,13 @@ async function validateRefreshToken(refreshToken, appKey, appSecret) {
   }
 }
 
-function readUsers() {
-  if (!fs.existsSync(USERS_FILE)) return [];
-  
-  try {
-    const fileContent = fs.readFileSync(USERS_FILE, 'utf-8');
-    
-    // Проверяем, что файл не пустой
-    if (!fileContent || fileContent.trim() === '') {
-      console.log('Users file is empty, returning empty array');
-      return [];
-    }
-    
-    const users = JSON.parse(fileContent);
-    
-    // Проверяем, что результат является массивом
-    if (!Array.isArray(users)) {
-      console.error('Users file contains invalid data (not an array):', users);
-      return [];
-    }
-    
-    return users;
-  } catch (error) {
-    console.error('Error reading users file:', error);
-    return [];
-  }
-}
+// Удаляем старую функцию readUsers, так как теперь используем async версию выше
 
 // Получение пользователя по user_token (заглушка для тестового токена)
 async function getUserFromToken(userToken) {
   if (userToken === 'test-token-123') {
     try {
-      const users = readUsers();
+      const users = await readUsers();
       return users[0] || null;
     } catch (error) {
       console.error('Error getting user from token:', error);
@@ -106,7 +114,7 @@ exports.handler = async function(event, context) {
   // --- GET: вернуть статус Dropbox для всех пользователей ---
   if (event.httpMethod === 'GET') {
     try {
-      const users = readUsers();
+      const users = await readUsers();
       // Проверяем, что users является массивом
       if (!Array.isArray(users)) {
         console.error('Users is not an array:', users);
@@ -193,7 +201,7 @@ exports.handler = async function(event, context) {
     }
 
     // Сохраняем токен для выбранных пользователей
-    const users = readUsers();
+    const users = await readUsers();
     
     // Проверяем, что users является массивом
     if (!Array.isArray(users)) {
@@ -211,7 +219,7 @@ exports.handler = async function(event, context) {
       }
       return user;
     });
-    fs.writeFileSync(USERS_FILE, JSON.stringify(updatedUsers, null, 2));
+    await writeUsers(updatedUsers);
     console.log('All users updated successfully');
     return {
       statusCode: 200,
