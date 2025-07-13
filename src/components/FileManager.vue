@@ -1866,11 +1866,16 @@ const contextMenu = ref({
     opacity: 1;
 }
 
-.sidebar-footer {
+  .sidebar-footer {
     margin-top: auto;
     padding-top: 16px;
     border-top: 1px solid #e5e7eb;
-}
+    /* Обеспечиваем видимость footer на мобильных устройствах */
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
 
 .settings-btn {
     width: 100%;
@@ -3404,6 +3409,8 @@ const contextMenu = ref({
   
   .mobile-overlay {
     display: block;
+    /* Учитываем безопасные зоны для мобильных браузеров */
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
   
   .mobile-close-btn {
@@ -3420,10 +3427,16 @@ const contextMenu = ref({
     transition: left 0.3s ease;
     border-radius: 0;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    /* Добавляем отступы снизу для мобильных браузеров */
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
   }
   
   .sidebar--mobile-open {
     left: 0;
+    /* Обеспечиваем прокрутку для мобильного меню */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   
   .main-content {
