@@ -70,7 +70,12 @@ const handleLogin = async () => {
     initializeDropboxIfNeeded() // не await!
     router.push('/')
   } catch (err) {
-    error.value = err.message
+    // Обрабатываем специальную ошибку блокировки
+    if (err.message.includes('blocked') || err.message.includes('Account is blocked')) {
+      error.value = 'Ваш аккаунт заблокирован администратором. Обратитесь к администратору для разблокировки.'
+    } else {
+      error.value = err.message
+    }
   }
 }
 </script>

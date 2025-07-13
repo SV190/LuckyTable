@@ -261,4 +261,64 @@ onMounted(() => {
   width: 100vw;
   height: 100vh;
 }
+
+/* Мобильные стили */
+@media (max-width: 768px) {
+  .settings-content {
+    padding: 20px;
+    margin: 16px;
+    max-width: calc(100vw - 32px);
+  }
+  
+  .settings-section {
+    margin: 16px 0;
+  }
+  
+  .settings-section h4 {
+    font-size: 14px;
+    margin: 0 0 12px 0;
+  }
+  
+  .storage-options {
+    gap: 8px;
+  }
+  
+  .close-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+  
+  .editor-container {
+    /* Убираем фиксированное позиционирование на мобильных */
+    position: relative;
+    height: 100vh;
+  }
+  
+  .editor-container.fullscreen {
+    position: fixed;
+    height: 100vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-content {
+    padding: 16px;
+    margin: 8px;
+    max-width: calc(100vw - 16px);
+  }
+  
+  .settings-section {
+    margin: 12px 0;
+  }
+  
+  .settings-section h4 {
+    font-size: 13px;
+    margin: 0 0 8px 0;
+  }
+  
+  .close-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+}
 </style> 

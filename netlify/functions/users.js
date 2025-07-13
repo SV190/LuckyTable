@@ -46,11 +46,41 @@ exports.handler = async (event, context) => {
 
   if (method === 'POST') {
     const data = JSON.parse(event.body || '{}');
+    
+    // Проверяем, что все обязательные поля присутствуют
+    if (!data.username && !data.login) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Username is required' }),
+        headers: { 'Content-Type': 'application/json' }
+      };
+    }
+    
+    if (!data.password) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Password is required' }),
+        headers: { 'Content-Type': 'application/json' }
+      };
+    }
+    
+    const username = data.username || data.login;
+    
+    // Проверяем, не существует ли уже пользователь с таким логином
+    const existingUser = users.find(u => u.username === username);
+    if (existingUser) {
+      return {
+        statusCode: 409,
+        body: JSON.stringify({ error: 'User with this username already exists' }),
+        headers: { 'Content-Type': 'application/json' }
+      };
+    }
+    
     // Генерируем простой ID на основе максимального существующего ID
     const maxId = users.length > 0 ? Math.max(...users.map(u => u.id)) : 0;
     const newUser = {
       id: maxId + 1,
-      username: data.username || data.login,
+      username: username,
       password: data.password,
       role: data.role || 'user',
       is_blocked: 0,

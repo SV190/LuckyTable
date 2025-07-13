@@ -36,7 +36,21 @@ const router = createRouter({
 
 // Навигационные хуки
 router.beforeEach(async (to, from, next) => {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, checkUserBlockStatus } = useAuth()
+  
+  // Проверяем статус блокировки для авторизованных пользователей
+  if (isAuthenticated.value && to.meta.requiresAuth) {
+    try {
+      const isBlocked = await checkUserBlockStatus()
+      if (isBlocked) {
+        // Пользователь заблокирован, перенаправляем на страницу входа
+        next('/login')
+        return
+      }
+    } catch (error) {
+      console.error('Error checking user block status:', error)
+    }
+  }
   
   // Проверяем требования маршрута
   if (to.meta.requiresAuth && to.meta.requiresAdmin) {

@@ -53,6 +53,46 @@ export function useAuth() {
     }
   }
 
+  // Проверка статуса блокировки пользователя
+  const checkUserBlockStatus = async () => {
+    if (!user.value || !user.value.id) return false
+    
+    try {
+      const response = await fetch(`/.netlify/functions/check-user-status?userId=${user.value.id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to check user status');
+        return false;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && data.isBlocked) {
+        // Пользователь заблокирован - выходим из аккаунта
+        console.log('User is blocked, logging out...');
+        
+        // Показываем уведомление пользователю
+        if (typeof window !== 'undefined' && window.alert) {
+          alert('Ваш аккаунт был заблокирован администратором. Вы вышли из системы.');
+        }
+        
+        await logout();
+        router.push('/login');
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking user block status:', error);
+      return false;
+    }
+  }
+
   // Логин
   const login = async (loginValue, password) => {
     isLoading.value = true;
@@ -168,6 +208,7 @@ export function useAuth() {
     requireAuth,
     requireAdmin,
     getToken,
-    checkTokenValidity
+    checkTokenValidity,
+    checkUserBlockStatus
   }
 } 

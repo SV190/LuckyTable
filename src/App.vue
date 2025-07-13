@@ -5,13 +5,42 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { useAuth } from './composables/useAuth.js'
 
-const { initAuth } = useAuth()
+const { initAuth, checkUserBlockStatus, isAuthenticated } = useAuth()
+
+// Интервал для проверки статуса блокировки (каждые 30 секунд)
+let blockStatusInterval = null
+
+// Функция для запуска периодической проверки
+const startBlockStatusCheck = () => {
+  if (blockStatusInterval) {
+    clearInterval(blockStatusInterval)
+  }
+  
+  blockStatusInterval = setInterval(async () => {
+    if (isAuthenticated.value) {
+      await checkUserBlockStatus()
+    }
+  }, 30000) // Проверяем каждые 30 секунд
+}
+
+// Функция для остановки проверки
+const stopBlockStatusCheck = () => {
+  if (blockStatusInterval) {
+    clearInterval(blockStatusInterval)
+    blockStatusInterval = null
+  }
+}
 
 onMounted(() => {
   initAuth()
+  startBlockStatusCheck()
+})
+
+onUnmounted(() => {
+  stopBlockStatusCheck()
 })
 </script>
 

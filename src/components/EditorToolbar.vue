@@ -12,7 +12,13 @@
       </div>
     </div>
     <div class="toolbar-right toolbar-right-full">
-      <button @click="$emit('saveToCloud')" class="toolbar-btn cloud-btn compact-cloud-btn" title="В облако">
+      <!-- Кнопка сохранения видна только администраторам -->
+      <button 
+        v-if="isAdmin" 
+        @click="$emit('saveToCloud')" 
+        class="toolbar-btn cloud-btn compact-cloud-btn" 
+        title="В облако"
+      >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
         <span>В облако</span>
       </button>
@@ -25,6 +31,10 @@
 </template>
 
 <script setup>
+import { useAuth } from '../composables/useAuth.js'
+
+const { isAdmin } = useAuth()
+
 defineProps({
   fileName: {
     type: String,
@@ -135,18 +145,105 @@ defineEmits(['backToFiles', 'saveToCloud', 'fullscreen'])
   background: #1d4ed8;
   box-shadow: 0 2px 12px rgba(59,130,246,0.13);
 }
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .editor-toolbar {
-    height: 38px;
-    padding: 0 2px;
+    height: 44px;
+    padding: 0 8px;
   }
-  .toolbar-btn, .cloud-btn.compact-cloud-btn, .fullscreen-btn.compact-fullscreen-btn {
+  
+  .toolbar-left {
+    gap: 4px;
+  }
+  
+  .toolbar-btn {
     font-size: 12px;
-    padding: 0 6px;
-    height: 24px;
+    padding: 0 8px;
+    height: 28px;
   }
+  
+  .toolbar-btn svg {
+    margin-right: 4px;
+    width: 16px;
+    height: 16px;
+  }
+  
+  .file-name {
+    font-size: 13px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .file-name-container svg {
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+  }
+  
+  .separator {
+    margin: 0 4px;
+  }
+  
+  .toolbar-right-full {
+    gap: 6px;
+  }
+  
+  .cloud-btn.compact-cloud-btn,
+  .fullscreen-btn.compact-fullscreen-btn {
+    font-size: 12px;
+    padding: 0 10px;
+    height: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .editor-toolbar {
+    height: 40px;
+    padding: 0 6px;
+  }
+  
+  .toolbar-btn {
+    font-size: 11px;
+    padding: 0 6px;
+    height: 26px;
+  }
+  
+  .toolbar-btn svg {
+    width: 14px;
+    height: 14px;
+    margin-right: 3px;
+  }
+  
   .file-name {
     font-size: 12px;
+    max-width: 80px;
+  }
+  
+  .file-name-container svg {
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+  }
+  
+  .toolbar-right-full {
+    gap: 4px;
+  }
+  
+  .cloud-btn.compact-cloud-btn,
+  .fullscreen-btn.compact-fullscreen-btn {
+    font-size: 11px;
+    padding: 0 8px;
+    height: 26px;
+  }
+  
+  /* Скрываем текст кнопок на очень маленьких экранах */
+  .toolbar-btn span {
+    display: none;
+  }
+  
+  .toolbar-btn svg {
+    margin-right: 0;
   }
 }
 </style> 

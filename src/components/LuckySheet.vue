@@ -8,6 +8,9 @@
 <script setup>
 import { ref, onMounted, watch, nextTick, defineEmits } from 'vue'
 import LuckyExcel from 'luckyexcel'
+import { useAuth } from '../composables/useAuth.js'
+
+const { isAdmin } = useAuth()
 
 const props = defineProps({
   fileData: {
@@ -86,9 +89,9 @@ const createLuckySheet = async (data, title = 'Новый файл') => {
       }],
       title: title,
       userInfo: 'Пользователь',
-      enableFormula: true,
-      allowEdit: true,
-      allowEditCell: true,
+      enableFormula: isAdmin.value,
+      allowEdit: isAdmin.value,
+      allowEditCell: isAdmin.value,
       merge: {
         enable: true,
         mergeCells: true
@@ -387,8 +390,8 @@ onMounted(async () => {
     await createLuckySheet(null, 'Новый файл')
   }
   
-  // Добавляем обработчик изменений для автосохранения
-  if (window.luckysheet) {
+  // Добавляем обработчик изменений для автосохранения (только для администраторов)
+  if (window.luckysheet && isAdmin.value) {
     // Автосохранение каждые 30 секунд
     setInterval(() => {
       if (isInitialized.value) {
@@ -542,5 +545,88 @@ const emitDataUpdate = () => {
   align-items: center;
   justify-content: center;
   display: flex;
+}
+
+/* Мобильные стили для LuckySheet */
+@media (max-width: 768px) {
+  .luckysheet-wrapper {
+    height: calc(100vh - 44px); /* Учитываем высоту toolbar */
+  }
+  
+  #luckysheet {
+    font-size: 12px;
+  }
+  
+  /* Уменьшаем размеры ячеек для мобильных */
+  #luckysheet .luckysheet-cell {
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+  
+  /* Адаптируем панель инструментов LuckySheet */
+  #luckysheet .luckysheet-toolbar {
+    height: 36px;
+    padding: 0 8px;
+  }
+  
+  #luckysheet .luckysheet-toolbar button {
+    font-size: 11px;
+    padding: 4px 6px;
+    margin: 0 2px;
+  }
+  
+  /* Адаптируем строку формул */
+  #luckysheet .luckysheet-formula-bar {
+    height: 32px;
+    font-size: 12px;
+  }
+  
+  /* Адаптируем вкладки листов */
+  #luckysheet .luckysheet-sheet-tab {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .luckysheet-wrapper {
+    height: calc(100vh - 40px);
+  }
+  
+  #luckysheet {
+    font-size: 10px;
+  }
+  
+  #luckysheet .luckysheet-cell {
+    font-size: 10px;
+    padding: 1px 2px;
+  }
+  
+  #luckysheet .luckysheet-toolbar {
+    height: 32px;
+    padding: 0 4px;
+  }
+  
+  #luckysheet .luckysheet-toolbar button {
+    font-size: 10px;
+    padding: 2px 4px;
+    margin: 0 1px;
+  }
+  
+  #luckysheet .luckysheet-formula-bar {
+    height: 28px;
+    font-size: 11px;
+  }
+  
+  #luckysheet .luckysheet-sheet-tab {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  
+  /* Скрываем некоторые элементы на очень маленьких экранах */
+  #luckysheet .luckysheet-toolbar button[title*="формат"],
+  #luckysheet .luckysheet-toolbar button[title*="выравнивание"] {
+    display: none;
+  }
 }
 </style>

@@ -35,6 +35,15 @@ exports.handler = async (event, context) => {
     };
   }
 
+  // Проверяем, не заблокирован ли пользователь
+  if (user.is_blocked === 1) {
+    return {
+      statusCode: 403,
+      body: JSON.stringify({ error: 'Account is blocked by administrator' }),
+      headers: { 'Content-Type': 'application/json' }
+    };
+  }
+
   // Возвращаем "токен" и пользователя (токен — просто строка для теста)
   return {
     statusCode: 200,
