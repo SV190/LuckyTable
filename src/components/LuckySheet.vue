@@ -553,11 +553,18 @@ const emitDataUpdate = () => {
 /* Мобильные стили для LuckySheet */
 @media (max-width: 768px) {
   .luckysheet-wrapper {
-    height: calc(100vh - 44px); /* Учитываем высоту toolbar */
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+    box-sizing: border-box;
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
-  
   #luckysheet {
-    font-size: 12px;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+    box-sizing: border-box;
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
   
   /* Уменьшаем размеры ячеек для мобильных */
@@ -593,7 +600,18 @@ const emitDataUpdate = () => {
 
 @media (max-width: 480px) {
   .luckysheet-wrapper {
-    height: calc(100vh - 40px);
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+    box-sizing: border-box;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  #luckysheet {
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+    box-sizing: border-box;
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
   
   #luckysheet {
