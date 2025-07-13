@@ -55,14 +55,41 @@ async function validateRefreshToken(refreshToken, appKey, appSecret) {
 
 function readUsers() {
   if (!fs.existsSync(USERS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+  
+  try {
+    const fileContent = fs.readFileSync(USERS_FILE, 'utf-8');
+    
+    // Проверяем, что файл не пустой
+    if (!fileContent || fileContent.trim() === '') {
+      console.log('Users file is empty, returning empty array');
+      return [];
+    }
+    
+    const users = JSON.parse(fileContent);
+    
+    // Проверяем, что результат является массивом
+    if (!Array.isArray(users)) {
+      console.error('Users file contains invalid data (not an array):', users);
+      return [];
+    }
+    
+    return users;
+  } catch (error) {
+    console.error('Error reading users file:', error);
+    return [];
+  }
 }
 
 // Получение пользователя по user_token (заглушка для тестового токена)
 async function getUserFromToken(userToken) {
   if (userToken === 'test-token-123') {
-    const users = readUsers();
-    return users[0] || null;
+    try {
+      const users = readUsers();
+      return users[0] || null;
+    } catch (error) {
+      console.error('Error getting user from token:', error);
+      return null;
+    }
   }
   return null;
 }
@@ -167,6 +194,17 @@ exports.handler = async function(event, context) {
 
     // Сохраняем токен для выбранных пользователей
     const users = readUsers();
+    
+    // Проверяем, что users является массивом
+    if (!Array.isArray(users)) {
+      console.error('Users is not an array, cannot update');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Ошибка чтения пользователей' })
+      };
+    }
+    
     const updatedUsers = users.map(user => {
       if (userIds.includes(user.id)) {
         user.dropboxRefreshToken = refreshToken;
