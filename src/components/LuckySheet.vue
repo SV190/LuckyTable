@@ -90,8 +90,8 @@ const createLuckySheet = async (data, title = 'Новый файл') => {
       title: title,
       userInfo: 'Пользователь',
       enableFormula: isAdmin.value,
-      allowEdit: isAdmin.value,
-      allowEditCell: isAdmin.value,
+      allowEdit: true,
+      allowEditCell: true,
       merge: {
         enable: true,
         mergeCells: true
@@ -409,6 +409,9 @@ onMounted(async () => {
 
   // После создания LuckySheet добавляем обработчик изменений
   // addChangeHandler(); // Удален
+
+  // --- Реализация отображения изменений в ячейке во время редактирования ---
+  // Удалён код observeEditor и bodyObserver для обновления ячейки в реальном времени
 })
 
 // Функция для добавления защиты от копирования
