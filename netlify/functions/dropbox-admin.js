@@ -80,10 +80,29 @@ exports.handler = async function(event, context) {
   if (event.httpMethod === 'GET') {
     try {
       const users = readUsers();
+      // Проверяем, что users является массивом
+      if (!Array.isArray(users)) {
+        console.error('Users is not an array:', users);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ users: [] })
+        };
+      }
+      
+      // Проверяем статус Dropbox для каждого пользователя
+      const usersWithDropboxStatus = users.map(user => {
+        return {
+          ...user,
+          dropboxConnected: !!user.dropboxRefreshToken,
+          dropboxError: null
+        };
+      });
+      
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ users })
+        body: JSON.stringify({ users: usersWithDropboxStatus })
       };
     } catch (error) {
       console.error('GET error:', error);

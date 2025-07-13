@@ -217,7 +217,7 @@
             <div class="section-title">Выберите папку назначения:</div>
             
             <div class="folder-grid">
-              <div v-for="folder in folders.filter(f => f.path !== (fileToMove?.path ? fileToMove.path.substring(0, fileToMove.path.lastIndexOf('/')) : ''))" :key="folder.id" class="folder-card" @click="handleMoveToFolder(folder)">
+              <div v-for="folder in (Array.isArray(folders) ? folders : []).filter(f => f.path !== (fileToMove?.path ? fileToMove.path.substring(0, fileToMove.path.lastIndexOf('/')) : ''))" :key="folder.id" class="folder-card" @click="handleMoveToFolder(folder)">
                 <div class="folder-icon">
                   <div class="folder-color-circle-modal" :style="{ backgroundColor: getFolderColor(folder.id) }"></div>
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -424,7 +424,7 @@
                 </div>
                 <span>Корневая папка</span>
               </div>
-              <div v-for="folder in folders.filter(f => f.id !== folderToMove?.id)" :key="folder.id" class="folder-item" @click="handleMoveFolderToFolder(folder)">
+              <div v-for="folder in (Array.isArray(folders) ? folders : []).filter(f => f.id !== folderToMove?.id)" :key="folder.id" class="folder-item" @click="handleMoveFolderToFolder(folder)">
                 <div class="folder-icon" :style="{ backgroundColor: getFolderBgColor(getFolderColor(folder.id)) }">
                   <div class="folder-color-circle" :style="{ backgroundColor: getFolderColor(folder.id) }"></div>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="getFolderStrokeColor(getFolderColor(folder.id))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -586,13 +586,13 @@ const getItemCountInFolder = (folder) => {
   // Получаем все файлы и папки, которые лежат непосредственно в этой папке
   const folderPath = folder.path;
   // Файлы только первого уровня
-  const filesInFolder = files.value.filter(file => {
+  const filesInFolder = (Array.isArray(files.value) ? files.value : []).filter(file => {
     if (!file.path) return false;
     const parentPath = file.path.substring(0, file.path.lastIndexOf('/'));
     return parentPath === folderPath;
   }).length;
   // Папки только первого уровня
-  const foldersInFolder = folders.value.filter(f => {
+  const foldersInFolder = (Array.isArray(folders.value) ? folders.value : []).filter(f => {
     if (f.id === 'root' || f.path === folderPath) return false;
     const parentPath = f.path.substring(0, f.path.lastIndexOf('/'));
     return parentPath === folderPath;
@@ -699,7 +699,7 @@ const deleteFile = async (file) => {
           files.value.splice(fileIndex, 1)
         }
       } else {
-        files.value = files.value.filter(f => f.id !== file.id);
+        files.value = Array.isArray(files.value) ? files.value.filter(f => f.id !== file.id) : [];
       }
       
       // Закрываем контекстное меню если оно открыто
@@ -728,8 +728,9 @@ const setCurrentFolder = (folderId) => {
   closeMobileMenu();
 };
 const filteredFiles = computed(() => {
-  const allFiles = files.value;
-  const folder = folders.value.find(f => f.id === currentFolder.value) || folders.value[0];
+  const allFiles = Array.isArray(files.value) ? files.value : [];
+  const allFolders = Array.isArray(folders.value) ? folders.value : [];
+  const folder = allFolders.find(f => f.id === currentFolder.value) || allFolders[0];
   let result;
   if (!folder) {
     return [];
@@ -750,7 +751,7 @@ const filteredFiles = computed(() => {
       return result;
 });
 const filteredFolders = computed(() => {
-  const allFolders = folders.value;
+  const allFolders = Array.isArray(folders.value) ? folders.value : [];
   const currentFolderObj = allFolders.find(f => f.id === currentFolder.value) || allFolders[0];
   const currentPath = currentFolderObj ? currentFolderObj.path : '';
   let result = allFolders.filter(f => {
@@ -861,7 +862,7 @@ const handleDropboxAuthChanged = async (isAuthenticated) => {
     }
   } else {
     storageType.value = 'local'
-    files.value = files.value.filter(f => f.type !== 'cloud')
+    files.value = Array.isArray(files.value) ? files.value.filter(f => f.type !== 'cloud') : []
     storageInfo.value = null
   }
 }
@@ -1207,7 +1208,7 @@ onUnmounted(() => {
 
 watch(files, (newFiles) => {
     // Сохраняем только локальные файлы в localStorage
-    const localFiles = newFiles.filter(file => file.type !== 'cloud');
+    const localFiles = Array.isArray(newFiles) ? newFiles.filter(file => file.type !== 'cloud') : [];
     const toSave = localFiles.map(({ file, ...rest }) => rest);
     localStorage.setItem('excelFiles', JSON.stringify(toSave));
 }, { deep: true });
@@ -1357,7 +1358,7 @@ const renameFolder = async (folder) => {
     await dropboxStorage.createFolder(newPath)
     
     // Перемещаем все файлы из старой папки в новую
-    const filesInFolder = files.value.filter(f => f.path.startsWith(folder.path + '/'))
+    const filesInFolder = (Array.isArray(files.value) ? files.value : []).filter(f => f.path.startsWith(folder.path + '/'))
     for (const file of filesInFolder) {
       const newFilePath = file.path.replace(folder.path, newPath)
       await dropboxStorage.moveFile(file.path, newFilePath)
@@ -1410,7 +1411,7 @@ const handleMoveFolderToFolder = async (targetFolder) => {
     await dropboxStorage.createFolder(newPath)
     
     // Перемещаем все файлы из старой папки в новую параллельно
-    const filesInFolder = files.value.filter(f => f.path.startsWith(folder.path + '/'))
+    const filesInFolder = (Array.isArray(files.value) ? files.value : []).filter(f => f.path.startsWith(folder.path + '/'))
     const movePromises = filesInFolder.map(async (file) => {
       const newFilePath = file.path.replace(folder.path, newPath)
       return await dropboxStorage.moveFile(file.path, newFilePath)
@@ -1505,7 +1506,7 @@ const handleFolderDrop = async (event, targetFolder) => {
       await dropboxStorage.createFolder(newPath)
       
       // Перемещаем все файлы из старой папки в новую
-      const filesInFolder = files.value.filter(f => f.path.startsWith(sourceFolder.path + '/'))
+      const filesInFolder = (Array.isArray(files.value) ? files.value : []).filter(f => f.path.startsWith(sourceFolder.path + '/'))
       for (const file of filesInFolder) {
         const newFilePath = file.path.replace(sourceFolder.path, newPath)
         await dropboxStorage.moveFile(file.path, newFilePath)
@@ -1558,7 +1559,7 @@ const handleRootDrop = async (event) => {
       await dropboxStorage.createFolder(newPath)
       
       // Перемещаем все файлы из старой папки в новую
-      const filesInFolder = files.value.filter(f => f.path.startsWith(sourceFolder.path + '/'))
+      const filesInFolder = (Array.isArray(files.value) ? files.value : []).filter(f => f.path.startsWith(sourceFolder.path + '/'))
       for (const file of filesInFolder) {
         const newFilePath = file.path.replace(sourceFolder.path, newPath)
         await dropboxStorage.moveFile(file.path, newFilePath)

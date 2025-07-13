@@ -251,7 +251,7 @@
           <div class="form-group">
             <label for="userSelect">Пользователь</label>
             <select id="userSelect" v-model="selectedUserId">
-              <option v-for="user in users.filter(u => !u.is_admin)" :key="user.id" :value="user.id">
+                              <option v-for="user in (Array.isArray(users) ? users : []).filter(u => !u.is_admin)" :key="user.id" :value="user.id">
                 {{ user.username }}
               </option>
             </select>
@@ -320,9 +320,9 @@ const dropboxSuccess = ref(false)
 const DROPBOX_REFRESH_TOKEN = import.meta.env.VITE_DROPBOX_REFRESH_TOKEN || import.meta.env.DROPBOX_REFRESH_TOKEN || '';
 
 // Вычисляемые свойства для статистики
-const activeUsers = computed(() => users.value.filter(u => !u.is_blocked).length)
-const blockedUsers = computed(() => users.value.filter(u => u.is_blocked).length)
-const connectedUsersCount = computed(() => users.value.filter(u => u.dropboxRefreshToken).length)
+const activeUsers = computed(() => (Array.isArray(users.value) ? users.value : []).filter(u => !u.is_blocked).length)
+const blockedUsers = computed(() => (Array.isArray(users.value) ? users.value : []).filter(u => u.is_blocked).length)
+const connectedUsersCount = computed(() => (Array.isArray(users.value) ? users.value : []).filter(u => u.dropboxRefreshToken).length)
 const dropboxRefreshToken = computed(() => DROPBOX_REFRESH_TOKEN || dropboxConfig.value.refreshToken)
 
 const fetchUsers = async () => {
