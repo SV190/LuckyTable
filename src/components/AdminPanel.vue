@@ -184,6 +184,7 @@
               v-model="newUser.password" 
               type="password" 
               placeholder="Введите пароль"
+              autocomplete="new-password"
               required
               @input="clearCreateError"
             />
@@ -336,7 +337,16 @@ const fetchUsers = async () => {
     })
     if (!response.ok) throw new Error('Ошибка загрузки пользователей')
     const data = await response.json()
-    users.value = data
+    
+    // Проверяем, что data является массивом
+    if (Array.isArray(data)) {
+      users.value = data
+    } else if (data && Array.isArray(data.users)) {
+      users.value = data.users
+    } else {
+      console.error('Invalid users data format:', data)
+      users.value = []
+    }
     
     // Проверяем статус Dropbox подключений
     await checkDropboxStatus()
@@ -369,7 +379,7 @@ const createUser = async () => {
   }
   
   // Проверяем, не существует ли уже пользователь с таким логином
-  const existingUser = users.value.find(u => u.username === newUser.value.login.trim())
+  const existingUser = Array.isArray(users.value) ? users.value.find(u => u.username === newUser.value.login.trim()) : null
   if (existingUser) {
     createError.value = 'Пользователь с таким логином уже существует'
     return
@@ -542,17 +552,19 @@ const checkDropboxStatus = async () => {
       const dropboxUsers = data.users || [];
       
       // Обновляем информацию о пользователях с статусом Dropbox
-      users.value = users.value.map(user => {
-        const dropboxUser = dropboxUsers.find(d => d.id === user.id);
-        if (dropboxUser) {
-          return {
-            ...user,
-            dropboxConnected: dropboxUser.dropboxConnected,
-            dropboxError: dropboxUser.dropboxError
-          };
-        }
-        return user;
-      });
+      if (Array.isArray(users.value)) {
+        users.value = users.value.map(user => {
+          const dropboxUser = dropboxUsers.find(d => d.id === user.id);
+          if (dropboxUser) {
+            return {
+              ...user,
+              dropboxConnected: dropboxUser.dropboxConnected,
+              dropboxError: dropboxUser.dropboxError
+            };
+          }
+          return user;
+        });
+      }
     }
   } catch (error) {
     console.error('Error checking Dropbox status:', error);
