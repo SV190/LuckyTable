@@ -20,6 +20,7 @@
               required
               autocomplete="username"
               class="auth-input"
+              :disabled="isLoading"
             />
           </div>
           <div class="auth-field">
@@ -32,10 +33,13 @@
               required
               autocomplete="current-password"
               class="auth-input"
+              :disabled="isLoading"
             />
           </div>
-          <button type="submit" class="auth-btn">
-            Войти
+          <button type="submit" class="auth-btn" :disabled="isLoading">
+            <span v-if="isLoading" class="loading-spinner"></span>
+            <span v-if="isLoading">Вход...</span>
+            <span v-else>Войти</span>
           </button>
           <div v-if="error" class="auth-error">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -61,10 +65,13 @@ const { login } = useAuth()
 const loginInput = ref('')
 const password = ref('')
 const error = ref('')
+const isLoading = ref(false)
 const router = useRouter()
 
 const handleLogin = async () => {
   error.value = ''
+  isLoading.value = true
+  
   try {
     await login(loginInput.value, password.value)
     initializeDropboxIfNeeded() // не await!
@@ -76,6 +83,8 @@ const handleLogin = async () => {
     } else {
       error.value = err.message
     }
+  } finally {
+    isLoading.value = false
   }
 }
 </script>
@@ -158,6 +167,15 @@ const handleLogin = async () => {
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59,130,246,0.13);
 }
+.auth-input:disabled {
+  background: #f1f5f9;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+.auth-input:disabled:focus {
+  border-color: #d1d5db;
+  box-shadow: none;
+}
 .auth-btn {
   background: #3b82f6;
   color: #fff;
@@ -176,6 +194,29 @@ const handleLogin = async () => {
 .auth-btn:hover {
   background: #2563eb;
   box-shadow: 0 4px 18px rgba(59,130,246,0.18);
+}
+.auth-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.auth-btn:disabled:hover {
+  background: #9ca3af;
+  box-shadow: none;
+}
+.loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 .auth-error {
   margin-top: 1.1rem;

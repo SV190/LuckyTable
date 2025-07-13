@@ -1,43 +1,43 @@
 const { Dropbox } = require('dropbox');
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch');
+
+const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN || '';
+const DROPBOX_CLIENT_ID = process.env.DROPBOX_CLIENT_ID || '';
+const DROPBOX_CLIENT_SECRET = process.env.DROPBOX_CLIENT_SECRET || '';
+const USERS_PATH = '/users.json';
 
 // Функция для получения access token через refresh token
-async function getAccessToken(refreshToken) {
-  const response = await fetch('https://api.dropboxapi.com/oauth2/token', {
+async function getAccessToken() {
+  const res = await fetch('https://api.dropbox.com/oauth2/token', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: '8nw2cgvlalf08um', // Dropbox App Key
-      client_secret: process.env.DROPBOX_CLIENT_SECRET || 'your_app_secret'
+      refresh_token: DROPBOX_REFRESH_TOKEN,
+      client_id: DROPBOX_CLIENT_ID,
+      client_secret: DROPBOX_CLIENT_SECRET
     })
   });
-  
-  if (!response.ok) {
-    throw new Error('Failed to refresh access token');
-  }
-  
-  const data = await response.json();
+  const data = await res.json();
+  if (!data.access_token) throw new Error('Не удалось получить access token Dropbox: ' + (data.error_description || JSON.stringify(data)));
   return data.access_token;
 }
 
-// Функция для получения refresh token пользователя из JSON файла
+async function getDropbox() {
+  const accessToken = await getAccessToken();
+  return new Dropbox({ accessToken, fetch });
+}
+
 async function getUserRefreshToken(userId) {
   try {
-    const usersPath = path.join(__dirname, 'users.json');
-    if (!fs.existsSync(usersPath)) {
-      console.log('users.json not found');
-      return null;
-    }
-    
-    const usersData = fs.readFileSync(usersPath, 'utf8');
-    const users = JSON.parse(usersData);
+    const dbx = await getDropbox();
+    const res = await dbx.filesDownload({ path: USERS_PATH });
+    const content = res.result.fileBinary.toString();
+    if (!content.trim()) return null;
+    const users = JSON.parse(content);
     const user = users.find(u => u.id === userId);
-    
     return user ? user.dropboxRefreshToken : null;
   } catch (error) {
     console.error('Error reading users.json:', error);
@@ -119,7 +119,7 @@ exports.handler = async function(event, context) {
         };
       }
       
-      const accessToken = await getAccessToken(refreshToken);
+      const accessToken = await getAccessToken();
       const dbx = new Dropbox({ accessToken });
       
       // Получаем путь из query string

@@ -739,6 +739,10 @@ const filteredFiles = computed(() => {
   } else {
     result = allFiles.filter(file => (file.path || '').startsWith(folder.path + '/'));
   }
+  
+  // Фильтруем файл users.json - он не должен отображаться никому
+  result = result.filter(file => file.name !== 'users.json');
+  
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.trim().toLowerCase();
     result = result.filter(f => f.name.toLowerCase().includes(q));
@@ -1101,7 +1105,6 @@ function closeAllModals() {
   showEditFolderModal.value = false;
   showMoveFileModal.value = false;
   showMoveFolderModal.value = false;
-  showSettings.value = false;
 }
 
 const hideContextMenu = () => {
@@ -1689,6 +1692,14 @@ function goBack() {
     currentFolder.value = 'root'
   }
 }
+
+// Состояние для контекстного меню файлов (если используется)
+const contextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  file: null
+});
 
 </script>
 
