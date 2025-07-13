@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const USERS_FILE = path.join(__dirname, 'users.json');
+const bcrypt = require('bcryptjs');
 
 function readUsers() {
   if (!fs.existsSync(USERS_FILE)) return [];
@@ -26,8 +27,8 @@ exports.handler = async (event, context) => {
   }
 
   const users = readUsers();
-  const user = users.find(u => u.username === login && u.password === password);
-  if (!user) {
+  const user = users.find(u => u.username === login);
+  if (!user || !bcrypt.compareSync(password, user.password)) {
     return {
       statusCode: 401,
       body: JSON.stringify({ error: 'Invalid credentials' }),

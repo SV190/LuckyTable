@@ -152,7 +152,7 @@
     </div>
 
     <!-- Модальное окно создания пользователя -->
-    <div v-if="showCreateModal" class="modal-overlay" @click="showCreateModal = false">
+    <div v-if="showCreateModal" class="modal-overlay" @click.self.stop>
       <div class="modal" @click.stop>
         <div class="modal-header">
           <h3 class="modal-title">Создать пользователя</h3>
@@ -1098,6 +1098,29 @@ const autoConnectDropbox = async (user) => {
   outline: none;
   border-color: #1f2937;
   box-shadow: 0 0 0 2px rgba(31, 41, 55, 0.1);
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+  background: #1f2937 !important;
+  color: #fff !important;
+  border: 2px solid #374151;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 0 1.5px #2563eb22;
+}
+.form-group input[type="text"]::placeholder,
+.form-group input[type="password"]::placeholder {
+  color: #cbd5e1;
+  opacity: 1;
+}
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px #2563eb44;
 }
 
 .form-checkbox {

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const USERS_FILE = path.join(__dirname, 'users.json');
+const bcrypt = require('bcryptjs');
 
 function readUsers() {
   if (!fs.existsSync(USERS_FILE)) return [];
@@ -78,10 +79,12 @@ exports.handler = async (event, context) => {
     
     // Генерируем простой ID на основе максимального существующего ID
     const maxId = users.length > 0 ? Math.max(...users.map(u => u.id)) : 0;
+    // Хэшируем пароль
+    const hashedPassword = bcrypt.hashSync(data.password, 10);
     const newUser = {
       id: maxId + 1,
       username: username,
-      password: data.password,
+      password: hashedPassword,
       role: data.role || 'user',
       is_blocked: 0,
       dropboxRefreshToken: data.dropboxRefreshToken || null,
