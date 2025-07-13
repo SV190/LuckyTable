@@ -536,7 +536,7 @@ function buildFolderTree(folders) {
       if (pathParts.length > 1) {
         // есть родительская папка
         const parentPath = '/' + pathParts.slice(0, -1).join('/')
-        const parent = folders.find(f => f.path === parentPath)
+        const parent = (Array.isArray(folders) ? folders : []).find(f => f.path === parentPath)
         if (parent) {
           map[parent.id].children.push(map[folder.id])
         } else {
@@ -712,14 +712,14 @@ const deleteFile = async (file) => {
   }
 };
 const setCurrentFolder = (folderId) => {
-  if (!folders.value.find(f => f.id === folderId)) {
+  if (!(Array.isArray(folders.value) ? folders.value : []).find(f => f.id === folderId)) {
     currentFolder.value = 'root';
   } else {
     currentFolder.value = folderId;
   }
   if (isDropboxAuthenticated.value && storageType.value === 'dropbox') {
     // Найти путь выбранной папки
-    const folder = folders.value.find(f => f.id === currentFolder.value);
+    const folder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === currentFolder.value);
     const path = folder ? folder.path : '';
     loadDropboxFiles(path); // Передаём путь!
   }
@@ -905,7 +905,7 @@ const deleteFromDropbox = async (filePath) => {
 // Функция для сохранения файла в Dropbox
 const saveToDropbox = async (fileName, fileData) => {
   try {
-    const folder = folders.value.find(f => f.id === currentFolder.value)
+    const folder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === currentFolder.value)
     const path = folder ? (folder.path ? `${folder.path}/${fileName}` : `/${fileName}`) : `/${fileName}`
     await dropboxStorage.uploadFile(path, fileData)
     await loadDropboxFiles() // Перезагружаем список файлов
@@ -981,7 +981,7 @@ const createFolder = async () => {
   // Разрешаем любые буквы, убираем только запрещённые символы Dropbox
   const safeName = newFolderName.value.trim().replace(/[\\/:?"<>|*]/g, '').replace(/\s+/g, '_')
   let parentPath = ''
-  const current = folders.value.find(f => f.id === currentFolder.value)
+  const current = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === currentFolder.value)
   if (current && current.path) {
     parentPath = current.path
   }
@@ -990,7 +990,7 @@ const createFolder = async () => {
     await dropboxStorage.createFolder(path)
     await loadDropboxFolders()
     // Сохраняем цвет для новой папки
-    const newFolder = folders.value.find(f => f.path === path)
+    const newFolder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.path === path)
     if (newFolder) {
       saveFolderColor(newFolder.id, selectedFolderColor.value)
     }
@@ -1003,7 +1003,7 @@ const createFolder = async () => {
 
 const deleteFolder = async (folderId) => {
   if (folderId === 'root') return
-  const folder = folders.value.find(f => f.id === folderId)
+  const folder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === folderId)
   if (!folder) return
   if (!confirm('Удалить папку и все файлы в ней?')) return
   try {
@@ -1033,7 +1033,7 @@ const handleMoveToFolder = async (targetFolder) => {
     toPath += fileToMove.value.name;
     await dropboxStorage.moveFile(fromPath, toPath);
     // После перемещения обновляем список файлов для текущей папки
-    const folder = folders.value.find(f => f.id === currentFolder.value);
+    const folder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === currentFolder.value);
     const path = folder ? folder.path : '';
     await loadDropboxFiles(path);
     // Закрываем модальное окно и сбрасываем fileToMove
@@ -1046,15 +1046,15 @@ const handleMoveToFolder = async (targetFolder) => {
 
 const getBreadcrumbs = computed(() => {
   const crumbs = []
-  let folder = folders.value.find(f => f.id === currentFolder.value)
+  let folder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === currentFolder.value)
   while (folder) {
     crumbs.unshift({ id: folder.id, name: folder.name })
     if (!folder.path || folder.path === '') break
     // ищем родителя по пути
     const parentPath = folder.path.substring(0, folder.path.lastIndexOf('/'))
-    folder = folders.value.find(f => f.path === parentPath)
+    folder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.path === parentPath)
     if (!folder && parentPath === '') {
-      folder = folders.value.find(f => f.id === 'root')
+      folder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === 'root')
     }
   }
   if (!crumbs.length || crumbs[0].id !== 'root') {
@@ -1085,7 +1085,7 @@ const handleFileDrop = async (event, targetFile) => {
     const draggedData = JSON.parse(data);
     if (draggedData.type === 'file' && draggedData.id !== targetFile.id) {
       // Перемещаем файл в ту же папку, где находится targetFile
-      const targetFolder = folders.value.find(f => f.id === currentFolder.value);
+      const targetFolder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === currentFolder.value);
       if (targetFolder && targetFolder.path !== '') {
         const newPath = `${targetFolder.path}/${draggedData.name}`;
         await dropboxStorage.moveFile(draggedData.path, newPath);
@@ -1426,7 +1426,7 @@ const handleMoveFolderToFolder = async (targetFolder) => {
     await Promise.all([loadDropboxFolders(), loadDropboxFiles()])
     
     // Переносим цвет папки
-    const newFolder = folders.value.find(f => f.path === newPath)
+    const newFolder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.path === newPath)
     if (newFolder) {
       const savedColors = JSON.parse(localStorage.getItem('folderColors') || '{}')
       if (savedColors[oldFolderId]) {
@@ -1490,7 +1490,7 @@ const handleFolderDrop = async (event, targetFolder) => {
     const data = JSON.parse(event.dataTransfer.getData('text/plain'))
     
     if (data.type === 'folder') {
-      const sourceFolder = folders.value.find(f => f.id === data.id)
+      const sourceFolder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === data.id)
       if (!sourceFolder || sourceFolder.id === targetFolder.id || sourceFolder.id === 'root') return
       
       // Проверяем, что не пытаемся переместить папку в саму себя или в её подпапку
@@ -1549,7 +1549,7 @@ const handleRootDrop = async (event) => {
     const data = JSON.parse(event.dataTransfer.getData('text/plain'))
     
     if (data.type === 'folder' && currentFolder.value === 'root') {
-      const sourceFolder = folders.value.find(f => f.id === data.id)
+      const sourceFolder = (Array.isArray(folders.value) ? folders.value : []).find(f => f.id === data.id)
       if (!sourceFolder || sourceFolder.id === 'root') return
       
       const oldFolderId = sourceFolder.id
