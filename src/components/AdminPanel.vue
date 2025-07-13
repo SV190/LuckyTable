@@ -172,6 +172,7 @@
               v-model="newUser.login" 
               type="text" 
               placeholder="Введите логин"
+              autocomplete="username"
               required
               @input="clearCreateError"
             />

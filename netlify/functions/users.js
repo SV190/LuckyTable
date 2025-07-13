@@ -56,37 +56,45 @@ async function writeUsers(users) {
 
 exports.handler = async (event, context) => {
   const method = event.httpMethod;
-  let users = readUsers();
-
-  if (method === 'GET') {
-    // Проверяем, есть ли параметр id в query string
-    const url = new URL(event.rawUrl || `http://localhost${event.path}${event.rawQuery ? '?' + event.rawQuery : ''}`);
-    const userId = url.searchParams.get('id');
+  
+  try {
+    let users = await readUsers();
     
-    if (userId) {
-      // Возвращаем одного пользователя по ID
-      const user = users.find(u => u.id === parseInt(userId));
-      if (!user) {
+    // Проверяем, что users является массивом
+    if (!Array.isArray(users)) {
+      console.error('Users is not an array:', users);
+      users = [];
+    }
+
+    if (method === 'GET') {
+      // Проверяем, есть ли параметр id в query string
+      const url = new URL(event.rawUrl || `http://localhost${event.path}${event.rawQuery ? '?' + event.rawQuery : ''}`);
+      const userId = url.searchParams.get('id');
+      
+      if (userId) {
+        // Возвращаем одного пользователя по ID
+        const user = users.find(u => u.id === parseInt(userId));
+        if (!user) {
+          return {
+            statusCode: 404,
+            body: JSON.stringify({ error: 'User not found' }),
+            headers: { 'Content-Type': 'application/json' }
+          };
+        }
         return {
-          statusCode: 404,
-          body: JSON.stringify({ error: 'User not found' }),
+          statusCode: 200,
+          body: JSON.stringify(user),
           headers: { 'Content-Type': 'application/json' }
         };
       }
+      
+      // Возвращаем всех пользователей
       return {
         statusCode: 200,
-        body: JSON.stringify(user),
+        body: JSON.stringify(users),
         headers: { 'Content-Type': 'application/json' }
       };
     }
-    
-    // Возвращаем всех пользователей
-    return {
-      statusCode: 200,
-      body: JSON.stringify(users),
-      headers: { 'Content-Type': 'application/json' }
-    };
-  }
 
   if (method === 'POST') {
     const data = JSON.parse(event.body || '{}');
@@ -134,7 +142,7 @@ exports.handler = async (event, context) => {
       createdAt: new Date().toISOString()
     };
     users.push(newUser);
-    writeUsers(users);
+    await writeUsers(users);
     return {
       statusCode: 201,
       body: JSON.stringify(newUser),
@@ -145,7 +153,7 @@ exports.handler = async (event, context) => {
   if (method === 'PUT') {
     const data = JSON.parse(event.body || '{}');
     users = users.map(u => u.id === data.id ? { ...u, ...data } : u);
-    writeUsers(users);
+    await writeUsers(users);
     return {
       statusCode: 200,
       body: JSON.stringify({ success: true }),
@@ -156,7 +164,7 @@ exports.handler = async (event, context) => {
   if (method === 'DELETE') {
     const { id } = JSON.parse(event.body || '{}');
     users = users.filter(u => u.id !== id);
-    writeUsers(users);
+    await writeUsers(users);
     return {
       statusCode: 200,
       body: JSON.stringify({ success: true }),
@@ -169,4 +177,12 @@ exports.handler = async (event, context) => {
     body: JSON.stringify({ error: 'Method not allowed' }),
     headers: { 'Content-Type': 'application/json' }
   };
+  } catch (error) {
+    console.error('Error in users handler:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Internal server error', details: error.message }),
+      headers: { 'Content-Type': 'application/json' }
+    };
+  }
 }; 
