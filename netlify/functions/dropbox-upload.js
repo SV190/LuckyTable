@@ -19,21 +19,36 @@ async function getAccessToken(refreshToken) {
   return data.access_token;
 }
 
+const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN || '';
+const DROPBOX_CLIENT_ID = process.env.DROPBOX_CLIENT_ID || '';
+const DROPBOX_CLIENT_SECRET = process.env.DROPBOX_CLIENT_SECRET || '';
+const USERS_PATH = '/users.json';
+
+async function getDropbox() {
+  const accessToken = await getAccessToken(DROPBOX_REFRESH_TOKEN);
+  return new Dropbox({ accessToken, fetch });
+}
+
+async function readUsers() {
+  try {
+    const dbx = await getDropbox();
+    const res = await dbx.filesDownload({ path: USERS_PATH });
+    const content = res.result.fileBinary.toString();
+    if (!content || !content.trim()) return [];
+    return JSON.parse(content);
+  } catch (e) {
+    if (e.status === 409) return [];
+    throw e;
+  }
+}
+
 async function getUserRefreshToken(userId) {
   try {
-    const usersPath = path.join(__dirname, 'users.json');
-    if (!fs.existsSync(usersPath)) {
-      console.log('users.json not found');
-      return null;
-    }
-    
-    const usersData = fs.readFileSync(usersPath, 'utf8');
-    const users = JSON.parse(usersData);
+    const users = await readUsers();
     const user = users.find(u => u.id === userId);
-    
     return user ? user.dropboxRefreshToken : null;
   } catch (error) {
-    console.error('Error reading users.json:', error);
+    console.error('Error reading users.json from Dropbox:', error);
     return null;
   }
 }
