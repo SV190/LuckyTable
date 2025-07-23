@@ -110,7 +110,7 @@
                 <div class="table-cell">{{ user.username }}</div>
                 <div class="table-cell">
                   <span :class="['role-badge', user.role === 'admin' ? 'admin' : 'user']">
-                    {{ user.role === 'admin' ? 'Админ' : 'Пользователь' }}
+                    {{ user.role === 'admin' ? 'АДМИН' : 'ПОЛЬЗОВАТЕЛЬ' }}
                   </span>
                 </div>
                 <div class="table-cell">
@@ -928,13 +928,14 @@ const autoConnectDropbox = async (user) => {
 }
 
 .role-badge.admin {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fde68a;
+  background: #ff3b3b;
+  color: #b91c1c;
+  border: 1px solid #f87171;
+  font-weight: 600;
 }
 
 .role-badge.user {
-  background: #dbeafe;
+  background: #4695fd;
   color: #1e40af;
   border: 1px solid #93c5fd;
 }
@@ -1042,36 +1043,43 @@ const autoConnectDropbox = async (user) => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(3px);
 }
 
 .modal {
   background: white;
-  border-radius: 8px;
-  padding: 24px;
+  border-radius: 12px;
+  padding: 28px;
   max-width: 480px;
   width: 90%;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
   border: 1px solid var(--border);
+  animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
   margin: 0;
 }
 
@@ -1080,81 +1088,124 @@ const autoConnectDropbox = async (user) => {
   border: none;
   font-size: 1.25rem;
   cursor: pointer;
-  color: var(--text-secondary);
-  padding: 4px;
-  border-radius: 4px;
+  color: #6b7280;
+  padding: 8px;
+  border-radius: 50%;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
 }
 
 .modal-close:hover {
   background: #f3f4f6;
-  color: var(--text-primary);
+  color: #1f2937;
 }
 
 .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .form-group label {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 0.9rem;
 }
 
 .form-group input,
 .form-group select {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.875rem;
+  padding: 12px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
   transition: all 0.2s ease;
+  background: #f9fafb;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #1f2937;
-  box-shadow: 0 0 0 2px rgba(31, 41, 55, 0.1);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  background: white;
 }
 
-.form-group input[type="text"],
-.form-group input[type="password"] {
-  background: #1f2937 !important;
-  color: #fff !important;
-  border: 2px solid #374151;
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  box-shadow: 0 0 0 1.5px #2563eb22;
-}
-.form-group input[type="text"]::placeholder,
-.form-group input[type="password"]::placeholder {
-  color: #cbd5e1;
-  opacity: 1;
-}
-.form-group input[type="text"]:focus,
-.form-group input[type="password"]:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px #2563eb44;
+.form-group input::placeholder {
+  color: #9ca3af;
 }
 
 .form-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.form-checkbox label {
+  font-size: 0.95rem;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+}
+
+.btn-cancel:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.btn-create {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #2563eb;
+  color: white;
+  border: none;
+  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.2);
+}
+
+.btn-create:hover {
+  background: #1d4ed8;
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
 }
 
 .form-checkbox input {
