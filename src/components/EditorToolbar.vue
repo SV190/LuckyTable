@@ -12,16 +12,7 @@
       </div>
     </div>
     <div class="toolbar-right toolbar-right-full">
-      <!-- Кнопка сохранения видна только администраторам -->
-      <button 
-        v-if="isAdmin" 
-        @click="$emit('saveToCloud')" 
-        class="toolbar-btn cloud-btn compact-cloud-btn" 
-        title="В облако"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
-        <span>В облако</span>
-      </button>
+      
       <button @click="$emit('fullscreen')" class="toolbar-btn fullscreen-btn compact-fullscreen-btn" title="Во весь экран">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         <span>Во весь экран</span>
