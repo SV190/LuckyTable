@@ -1,0 +1,28 @@
+/* Минимальные стили для скроллбаров */
+
+/* Стилизуем вертикальный скроллбар */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 0; /* Скрываем горизонтальный скроллбар */
+}
+
+::-webkit-scrollbar-track {
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 8px;
+  border: 2px solid #f9fafb;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #059669;
+}
+
+/* Скрываем горизонтальный скроллбар */
+::-webkit-scrollbar:horizontal {
+  display: none;
+  height: 0;
+}
